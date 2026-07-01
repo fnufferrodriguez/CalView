@@ -251,6 +251,7 @@ def create_widgets(scenario_names, c_field_list):
         Checkbox for showing year in exceedence table
     exceedance_show_year_check_diffs: obj
         Checkbox for showing year in differences exceedence table
+    x_var_selector
 
     """
 
@@ -359,8 +360,17 @@ def create_widgets(scenario_names, c_field_list):
     exceedance_show_year_check = pn.widgets.Checkbox(name='Show year in table')
     exceedance_show_year_check_diffs = pn.widgets.Checkbox(name='Show year in table')
 
+    x_var_selector = pn.widgets.Select(
+        name='X Axis Variable Selector',
+        options=c_description_to_field,
+        width=400
+    )
+
+
     # Return all these widgets
-    return scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year, var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs
+    return (scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year,
+            var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs,
+            x_var_selector)
 
 
 def create_metadata(scenario_names, c_field_list, c_default_units, s_flag):
@@ -510,7 +520,8 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
 
     # Create the widgets
     (scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year,
-     var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs) = create_widgets(scenario_names, c_field_list)
+     var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs,
+     x_var_selector) = create_widgets(scenario_names, c_field_list)
 
     # to update the visibility when period is changed
     wyt_watcher = period_selector.param.watch(partial(hide_show_wyt, header=header), 'value')
@@ -676,6 +687,37 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         li_wyt_selected=wyt_selector
     )
 
+    o_two_var_plot = pn.bind(
+        plot_two_fields,
+        df_all=df_all_data,
+        x_var=x_var_selector,
+        y_vars=var_selector,
+        scenario_list=scen_selector,
+        unit_choice=unit_selector,
+        c_default_units=c_default_units,
+        s_comparison=s_comparison,
+        c_field_list=c_field_list,
+        period_choice=period_selector,
+        li_wyt_selected=wyt_selector,
+        b_wyt_period_year=wyt_period_selector_year,
+        li_wyt_period_months=wyt_period_selector
+    )
+    o_two_var_diffs_plot = pn.bind(
+        plot_two_fields,
+        df_all=df_diffs,
+        x_var=x_var_selector,
+        y_vars=var_selector,
+        scenario_list=scen_selector,
+        unit_choice=unit_selector,
+        c_default_units=c_default_units,
+        s_comparison=s_comparison,
+        c_field_list=c_field_list,
+        period_choice=period_selector,
+        li_wyt_selected=wyt_selector,
+        b_wyt_period_year=wyt_period_selector_year,
+        li_wyt_period_months=wyt_period_selector
+    )
+
     if s_flag == 'temperature':
         o_year_selector = pn.widgets.IntInput(name='Year', value=1923, step=1, start=1922, end=2021, width=100)
         o_reservoir_toggle = pn.widgets.RadioButtonGroup(
@@ -743,6 +785,14 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
                                   s_title="Monthly Pattern",
                                   s_comparison=s_comparison,
                                   s_stat=monthly_stat_sel)
+    two_var_title = pn.bind(create_plot_title,
+                            s_title="Two Variable Plot",
+                            s_comparison='')
+
+    two_var_diffs_title = pn.bind(create_plot_title,
+                                  s_title="Two Variable Differences Plot",
+                                  s_comparison=s_comparison,
+                                  )
 
         # Create the different tables of metadata
     o_metadata = create_metadata(scenario_names, c_field_list, c_default_units, s_flag)
@@ -761,6 +811,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     grouped_plots = pn.Row()
     exceedance_plots = pn.Row()
     monthly_plots = pn.Column()
+    two_year_plots = pn.Column()
 
     if s_flag == 'temperature':
         one_year_plots = pn.Column()
@@ -783,6 +834,9 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     monthly_plots.append(pn.Row(monthly_stat_sel))
     monthly_plots.append(pn.Row(pn.Column(monthly_title, bound_monthly_plot), pn.Column(monthly_diffs_title, bound_monthly_diffs_plot)))
 
+    two_year_plots.append(pn.Row(x_var_selector))
+    two_year_plots.append(pn.Row(pn.Column(two_var_title, o_two_var_plot), pn.Column(two_var_diffs_title, o_two_var_diffs_plot)))
+
     if s_flag == 'temperature':
         one_year_plots.append(pn.Row(o_year_selector, o_reservoir_toggle))
         one_year_plots.append(bound_one_year_plots)
@@ -795,6 +849,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
             ('Time-Aggregated', grouped_plots),
             ('Exceedance', exceedance_plots),
             ('Monthly Pattern', monthly_plots),
+            ('Two Field Comparison', two_year_plots),
             ('Metadata', o_metadata)
         )
     elif s_flag == 'temperature':
@@ -805,6 +860,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
             ('Time-Aggregated', grouped_plots),
             ('Exceedance', exceedance_plots),
             ('Monthly Pattern', monthly_plots),
+            ('Two Field Comparison', two_year_plots),
             ('Metadata', o_metadata)
         )
 

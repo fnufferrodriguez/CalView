@@ -7,7 +7,6 @@ import panel as pn
 import holoviews as hv
 from bokeh.models import CustomJSTickFormatter
 
-
 def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s_comparison, c_field_list):
     """
     Creates the timeseries plots
@@ -144,7 +143,8 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
     df_plot = df_wide.drop([var for var in df_wide if var not in keeplist])
 
     # round to one decimal place
-    df_plot=df_plot.round(1)
+    ls_non_dates = df_plot.dtypes[df_plot.dtypes !='datetime64[us]'].index
+    df_plot[ls_non_dates]=df_plot[ls_non_dates].round(1)
 
     keeplist.remove('Date')
     if b_no_unit_flag:
@@ -1944,9 +1944,12 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
                 df_exceed.loc[i_exceedance_prob] = pd.Series(dtype='float32')
                 df_exceed.interpolate(method='index', inplace=True)
                 df_plot.loc[month, df_exceed.columns] = df_exceed.loc[i_exceedance_prob]
+
     # round to one decimal
-    df_plot = df_plot.round(1)
-    df_wide = df_wide.round(1)
+    ls_non_dates = df_plot.dtypes[df_plot.dtypes != 'datetime64[us]'].index
+    df_plot[ls_non_dates] = df_plot[ls_non_dates].round(1)
+    ls_non_dates = df_wide.dtypes[df_wide.dtypes != 'datetime64[us]'].index
+    df_wide[ls_non_dates] = df_wide[ls_non_dates].round(1)
 
     # reorder to be in water year
     df_plot = df_plot.reindex(index=[10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9])
@@ -2079,3 +2082,373 @@ def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year):
         o_final_temp_plots.append(o_temp_plot)
 
     return pn.Column(o_final_plots, o_final_temp_plots,o_final_data)
+
+
+def plot_two_fields(df_all, x_var, y_vars, scenario_list, unit_choice,
+                    c_default_units, s_comparison,c_field_list, period_choice, li_wyt_selected, b_wyt_period_year, li_wyt_period_months):
+    """
+    Creates monthly pattern plot
+
+    Parameters
+    ----------
+    df_all: DataFrame
+        Data to be filtered and plotted
+    var_list: list
+        Fields we want to plot
+    scenario_list: list
+        Scenarios we want to plot
+    unit_choice: str
+        Unit selection (CFS or TAF)
+    stat_choice: str
+        Statistic to calculate
+    c_default_units: dict
+        Dictionary of default units for each field
+    s_comparison: str
+        Name of comparison scenario
+    c_field_list: dict
+        Dictionary of fields and descriptions
+    li_wyt_selected: list
+        Water year types selected for WYT time period
+    period_choice: int or str
+        Time period selected
+    li_wyt_selected
+
+    Returns
+    -------
+    Panel Object
+            Plot and table of data as a column
+    """
+    # if the data frame is empty, return a markdown frame. This will happen if only one scenario is selected and its the comparison one. the differences will be empty
+    if df_all.empty:
+        return pn.pane.Markdown("## No data to display")
+
+    df_all_plot = df_all.groupby('Scenario').resample(rule='ME', on='Date').mean()
+    df_all_plot.reset_index(inplace=True, drop=False)
+    durations = [date.day for date in df_all_plot['Date']]
+
+    b_diffs_flag = False
+
+    # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
+    if s_comparison in scenario_list:
+        scenario_list.remove(s_comparison)
+        scenario_list.append(s_comparison)
+
+    # check if comparison scen is in the data frame
+    # if it's not, then we are creating the differences plot and don't want to include comparison scen
+    if s_comparison not in df_all_plot.Scenario.unique():
+        scenario_list = [scen for scen in scenario_list if scen != s_comparison]
+        b_diffs_flag = True
+
+    # to convert from cfs to taf or vice versa
+    cfs_taf = np.multiply(durations, (24 * 3600 / 43560 / 1000))
+    taf_cfs = np.divide((43560 * 1000 / 24 / 3600), durations)
+
+
+    try:
+        s_x_unit = c_default_units[x_var].strip().upper()
+    except:
+        s_x_unit = None
+
+    if s_x_unit != unit_choice and s_x_unit not in ['NONE', 'DEGF', None]:
+        if s_x_unit == 'CFS':
+            df_all_plot[x_var] = \
+                np.multiply(df_all_plot[x_var], cfs_taf)
+        elif s_x_unit == 'TAF':
+            df_all_plot[x_var] = \
+                np.multiply(df_all_plot[x_var], taf_cfs)
+
+    b_alt_unit = False
+    ls_alt_vars = []
+    s_alt_unit = ''
+
+    # create copy of var list since lists are mutable
+    y_vars_final = y_vars[:]
+    # Unit conversion
+    for var in y_vars:
+        try:
+            original_unit = c_default_units[var].strip().upper()
+        except:
+            original_unit = 'NONE'
+        # check for variables that are not cfs/taf like EC, temperature, X2 position
+        if original_unit not in ['CFS', 'TAF']:
+            # if we havent already declared what the unit we will keep track of is, declare it
+            if s_alt_unit == '':
+                s_alt_unit = original_unit
+            if original_unit == s_alt_unit:
+                b_alt_unit = True
+                ls_alt_vars.append(var)
+        elif original_unit == unit_choice:
+            pass
+        elif original_unit == 'CFS':
+            df_all_plot[var] = \
+                np.multiply(df_all_plot[var], cfs_taf)
+        elif original_unit == 'TAF':
+            df_all_plot[var] = \
+                np.multiply(df_all_plot[var], taf_cfs)
+    agg_func = 'sum' if unit_choice == 'TAF' else 'mean'
+
+    # If we found any non cfs/taf variables, we will only use those
+    if b_alt_unit:
+        y_vars_final = ls_alt_vars
+        unit_choice = 'Degrees Fahrenheit' if s_alt_unit == 'DEGF' else s_alt_unit
+        agg_func = 'last' if s_alt_unit=='NONE' else 'mean'
+    print(y_vars_final)
+    if len(y_vars_final) == 0:
+        return pn.pane.Markdown('## Select variables above to display plot.')
+
+
+
+    # switch from variable name to description
+    df_all_plot.rename(c_field_list, axis='columns', inplace=True)
+    y_vars_final = [c_field_list[var] for var in y_vars_final]
+    x_var = c_field_list[x_var]
+
+    # if we are sorting by WYT we need to do some work before switching to wide frame
+    if isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
+        # sort for the years we want
+        # see if any years are selected
+        if not li_wyt_selected:
+            return pn.pane.Markdown("## No data to display")
+
+        # we do have some selected
+        # what the column with the wyt is called
+        s_wyt_col = c_field_list[period_choice]
+
+        # select just september since that will have the correct wyt
+        df_septembers = df_all_plot[df_all_plot['Month'] == 9]
+
+        # pull the years and scenarios that match the selected wyts
+        df_wy_to_use = df_septembers[df_septembers[s_wyt_col].isin(li_wyt_selected)][
+            ['Scenario', 'OctSeptYear', s_wyt_col]]
+        # dictionary to hold {(scenario, WY): WYT}
+        c_wy_to_wyt = {}
+        for index, row in df_wy_to_use.iterrows():
+            c_wy_to_wyt[(row['Scenario'], row['OctSeptYear'])] = row[s_wyt_col]
+
+        # Assign wyt column to be the final wyt
+        def wy_to_wyt(wyt_dict, scen, year):
+            try:
+                return wyt_dict[(scen, year)]
+            except:
+                return np.nan
+
+        df_all_plot[s_wyt_col] = df_all_plot.apply(
+            lambda row: wy_to_wyt(c_wy_to_wyt, row['Scenario'], row['OctSeptYear']), axis=1)
+
+    # Sortable, filter to target scenarios and vars
+    df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
+    df_wide[['OctSeptYear', 'JanDecYear', 'MarFebYear', 'Month']] = \
+    df_all_plot.loc[df_all_plot['Scenario'] == scenario_list[0]][
+        ['OctSeptYear', 'JanDecYear', 'MarFebYear', 'Month']].reset_index(drop=True)
+    df_wide.reset_index(inplace=True, drop=True)
+
+    keeplist = []
+    y_vars_final_list = []
+    x_var_list = []
+
+    # if grouping by wyt we need to include that variable
+    if isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
+        for scenario in scenario_list:
+            df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[s_wyt_col]]
+            df_temp.reset_index(inplace=True, drop=True)
+            col_names = [f'{scenario}: {s_wyt_col}']
+            df_temp.columns = col_names
+            df_wide[col_names] = df_temp[col_names]
+            for name in col_names:
+                keeplist.append(name)
+
+
+    for scenario in scenario_list:
+        df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][y_vars_final]
+        df_temp.reset_index(inplace=True, drop=True)
+        col_names = [f'{scenario}: {var}' for var in y_vars_final]
+        df_temp.columns = col_names
+        df_wide[col_names] = df_temp[col_names]
+        y_vars_final_list.extend(col_names)
+
+        df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[x_var]]
+        df_temp.reset_index(inplace=True, drop=True)
+        col_names = [f'{scenario}: {x_var}']
+        df_temp.columns = col_names
+        df_wide[col_names] = df_temp[col_names]
+        x_var_list.extend(col_names)
+
+    keeplist.extend(y_vars_final_list)
+    if x_var not in y_vars_final:
+        keeplist.extend(x_var_list)
+    # ------- Agg ops below -------------
+
+    # Remove incomplete years (default CS3 runs typically based on WY)
+    # Grouping by calendar year or contract year (Mar-Feb) leaves partial
+    # years @ start/end of run
+
+    # grouping by period choice
+    # if we chose a year option
+    if period_choice in ["OctSeptYear", "JanDecYear", "MarFebYear"]:
+        df_timecounts = df_wide.groupby(by=[period_choice]).count()
+        droplist = df_timecounts[df_timecounts['Date'] < 12].index
+        df_wide = df_wide[df_wide[period_choice].isin(droplist) == False]
+        # Can't sum dates: drop
+        df_wide = df_wide.drop('Date', axis=1)
+        df_grouped = df_wide.groupby(by=[period_choice]).agg(agg_func)
+        df_plot = df_grouped[keeplist]
+
+        # round to one decimal place
+        df_plot = df_plot.round(1)
+
+
+    # if water year type is selected as period
+    elif isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
+        # filter for selected WYTs
+        # get rif of anywhere all wyt columns are empty
+        df_wide = df_wide.dropna(subset=keeplist[:len(scenario_list)], how='all')
+
+        # check if we ended up with no matching years
+        if df_wide.empty:
+            return pn.pane.Markdown("## No data to display")
+
+        # if we want to look at water year totals
+        if b_wyt_period_year:
+            # drop incomplete years
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
+            droplist = df_timecounts[df_timecounts['Date'] < 12].index
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
+
+            # Can't sum dates: drop
+            df_wide = df_wide.drop('Date', axis=1)
+
+            # get the year totals/averages
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
+
+            # assign the WYt to be the correct one
+            df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]] / 12
+
+            # get rid of other columns we dont need
+            df_plot = df_grouped[keeplist]
+        else:
+            if len(li_wyt_period_months) == 0:
+                return pn.pane.Markdown("## No data to display")
+            # first get rid of the years we dont need
+            df_wide = df_wide.dropna(subset=keeplist[:len(scenario_list)], how='all')
+
+            # pull out only those months
+            df_wide = df_wide[df_wide['Month'].isin(li_wyt_period_months)]
+
+            # drop incomplete years
+            df_timecounts = df_wide.groupby(by=['OctSeptYear']).count()
+            droplist = df_timecounts[df_timecounts['Date'] < len(li_wyt_period_months)].index
+            df_wide = df_wide[df_wide['OctSeptYear'].isin(droplist) == False]
+
+            # Can't sum dates: drop
+            df_wide = df_wide.drop('Date', axis=1)
+
+            # get the year totals/avgs
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
+
+            # assign the WYt to be the correct one
+            df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]] / len(
+                li_wyt_period_months)
+
+            # get rid of other columns we dont need
+            df_plot = df_grouped[keeplist]
+
+        # round to one decimal place
+        df_plot = df_plot.round(1)
+
+        s_title = "## " + s_wyt_col + " "
+
+        c_no_unit_names = {
+            'WYT_SAC_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
+            'WYT_SJR_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
+            'WYT_TRIN_': {1: 'Extremely Wet', 2: 'Wet', 3: 'Normal', 4: 'Dry', 5: 'Critically Dry'},
+            'WYT_SHASTA_CVP_': {0: 'Non-Critical', 1: 'ShastaCritical'},
+            'WYT_FEATHER_': {1: 'Non-Critical', 2: 'Critically Dry'},
+            'WYT_SJRRP_DV': {1: 'Wet', 2: 'Normal-Wet', 3: 'Normal-Dry', 4: 'Dry', 5: 'Critical High',
+                             6: 'Critical Low'},
+            'WYT_AMERD983_CVP_': {1: 'Non-Critical', 2: 'Critically Dry'},
+            'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
+        }
+        try:
+            if '/' in period_choice:
+                period_choice_stripped = period_choice.split('/')[1]
+            else:
+                period_choice_stripped = period_choice
+            if period_choice_stripped[:3] == 'WYT':
+                s_all_sel_wyt = 'All Water Year Types' if len(li_wyt_selected) == len(
+                    list(c_no_unit_names[period_choice_stripped].keys())) else ', '.join(
+                    [c_no_unit_names[period_choice_stripped][wyt] for wyt in li_wyt_selected])
+            else:
+                s_all_sel_wyt = ', '.join([c_no_unit_names[period_choice_stripped][wyt] for wyt in li_wyt_selected])
+        except:
+            s_all_sel_wyt = ', '.join([str(wyt) for wyt in li_wyt_selected])
+
+        s_title += s_all_sel_wyt + ' Years \n'
+        if b_wyt_period_year:
+            s_title += "## Water Year Total"
+        else:
+            li_wyt_period_months.sort()
+            ls_months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            s_title += "## " + ', '.join([ls_months[i - 1] for i in li_wyt_period_months])
+
+    # selected a month
+    elif isinstance(period_choice, int):
+        df_wide = df_wide[df_wide.Month == period_choice]
+
+        # Can't sum dates: drop
+        df_wide = df_wide.drop('Date', axis=1)
+        # this shouldn't make a difference since it will be one per month but it makes it match the rest
+        df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
+        df_plot = df_grouped[keeplist]
+
+        # round to one decimal place
+        df_plot = df_plot.round(1)
+
+        c_num_to_month = {1: "January", 2: "February", 3: "March", 4: "April",
+                          5: "May", 6: "June", 7: "July", 8: "August",
+                          9: "September", 10: "October", 11: "November", 12: "December"}
+
+    # if they picked a partial month
+    else:
+        # pull out start and stop months and then create a list of all the months in between
+        i_start_month, i_end_month = int(period_choice.split('-')[0]), int(period_choice.split('-')[1])
+        if i_end_month > i_start_month:
+            li_months = list(range(i_start_month, i_end_month + 1))
+        else:
+            li_months = list(range(i_start_month, 13)) + list(range(1, i_end_month + 1))
+
+        # filter for those months
+        df_wide = df_wide[df_wide['Month'].isin(li_months)]
+
+        # Can't sum dates: drop
+        df_wide = df_wide.drop('Date', axis=1)
+
+        # if we cross a cal year change, group by WY
+        if period_choice in ['11-3', '10-1', '12-2', '10-4']:
+            df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
+        else:
+            df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
+        df_plot = df_grouped[keeplist]
+
+        # round to one decimal place
+        df_plot = df_plot.round(1)
+
+    o_final_plot = hv.HLine(0).opts(line_width=0)
+
+    for scenario in scenario_list:
+        x_curr = [x for x in x_var_list if x.split(':')[0] == scenario][0]
+        y_curr = [y for y in y_vars_final_list if y.split(':')[0] == scenario]
+
+        s_y_label = y_curr[0].split(': ')[-1] + ' (' + s_x_unit + ')' if len(y_curr) == 1 else unit_choice
+        o_final_plot = o_final_plot * df_plot.hvplot.scatter(
+            x = x_curr,
+            y = y_curr,
+            xlabel=x_var + ' (' + s_x_unit + ')',
+            ylabel=s_y_label,
+            group_label='Y Value',
+            grid=True,
+            min_height=600
+        ).opts(show_legend =True,legend_position='top', legend_cols=1)
+
+    return pn.Column(pn.pane.HoloViews(o_final_plot, sizing_mode='stretch_width', linked_axes=False),
+                     pn.pane.DataFrame(df_plot, index=True, max_height=500)
+                    )
