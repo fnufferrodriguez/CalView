@@ -13,3 +13,4 @@ dependencies:
      - hvplot=0.12
      - bokeh=3.9
      - pyinstaller=6.20
+     - rasterio
