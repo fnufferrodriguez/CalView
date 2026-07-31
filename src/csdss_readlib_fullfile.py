@@ -89,7 +89,7 @@ def pickler(append_list, baseline_stack, c_default_units, c_field_list):
     # num_fixed = # of columns that are the same in all cases
     num_fixed = 7
 
-    # columns that shouldn't be subtracted
+    # columns that shouldn't be subtracted TODO this chunk might be different for hydro
     li_wyt_cols = [index+num_fixed for index, colname in enumerate(df_all_data.iloc[:, num_fixed:]) if c_default_units[colname] == 'NONE']
     li_fixed_cols_indices = list(range(0, num_fixed)) + li_wyt_cols
     df_fixed_cols = df_all_data.iloc[:, li_fixed_cols_indices]
@@ -218,7 +218,7 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name, s_flag):
     fid = HecDss.Open(dss_file)
 
     # getPathnamesDict returns a dict of pathnames.
-    pathNames = fid.search_path()
+    pathNames = fid.search_path() #TODO different in hydro
 
     dfPaths = pd.DataFrame(pathNames, columns=["AllPaths"])
 
@@ -265,7 +265,11 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name, s_flag):
                 e_part = dfPaths[dfPaths[['A', 'B', 'C']].agg('/'.join, axis=1) == b_part]['E'].values
                 e_part = [part for part in e_part if '1M' in part][0]
                 target_pathName = f'/{b_part}//{e_part}/{f_part}/'
-
+            elif s_flag == 'hydro':
+                c_part = dfPaths[dfPaths['B'] == b_part]['C'].iloc[0]
+                a_part = dfPaths[dfPaths['B'] == b_part]['A'].iloc[0]
+                f_part = dfPaths[dfPaths['B'] == b_part]['F'].iloc[0]
+                target_pathName = f'/{a_part}/{b_part.upper()}/{c_part}//1MON/{f_part}/'
 
             # pull current path
             working_ts = fid.read_ts(target_pathName, trim_missing=True)
@@ -336,7 +340,8 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_flag):
         c_field_list_final = {}
     elif s_flag == 'salinity':
         c_field_list_final = c_field_list.copy()
-
+    elif s_flag == 'hydro':
+        c_field_list_final = c_field_list.copy()
     multiprocess = False
 
     # Non-multi version for debug
@@ -521,6 +526,34 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_flag):
                 c_default_units_all.update(c_ec_default_units)
 
                 results[run[0]] = df_all_data
+            elif s_flag == 'hydro': #todo edit so pulls in correct hydro data to visualize using folders
+                df_all_data, c_target_ts_list, c_default_units = single_file_pull(run[1], c_field_list, run[0], s_flag)
+
+                #assume all monthly data but TODO check this
+                df_all_data.dropna(how='any', inplace=True)
+
+                # Add in the columns not pulled from the DSS file
+                # Calender year, month, water year, contract year
+                df_all_data.insert(0, 'JanDecYear', df_all_data.index.year)
+                df_all_data.insert(0, 'Month', df_all_data.index.month)
+                df_all_data.insert(0, 'Year', df_all_data.index.year)
+                df_all_data.insert(0, 'MarFebYear', np.where(df_all_data['Month'] >= 3, df_all_data['Year'], df_all_data['Year'] - 1))
+                df_all_data.insert(0, 'OctSeptYear', np.where(df_all_data['Month'] <= 9, df_all_data['Year'], df_all_data['Year'] + 1))
+
+                # add scenario name
+                df_all_data.insert(0, 'Scenario', run[0])
+
+                # make a date column
+                df_all_data['Date'] = df_all_data.index
+                date_temp = df_all_data.pop('Date')
+                df_all_data.insert(0, 'Date', date_temp)
+
+                # remove ones that werent found
+                c_field_list_final = {field: c_field_list_final[field] for field in c_field_list_final if field in c_target_ts_list}
+
+                #add to dictionary to store
+                c_default_units_all.update(c_default_units)
+                results[run[0]] = df_all_data
     # else:
     #     # create pool
     #     pool = Pool()
@@ -543,7 +576,7 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_flag):
     #     pool.join()
 
     # since the set up of the temperature version allowed for fields to be in one run but not another, we need to remove any that are like this
-    if s_flag == 'temperature' or s_flag == 'salinity':
+    if s_flag == 'temperature' or s_flag == 'salinity': #todo might need to add hydro to this
 
         # count the number of times each column is used
         ls_all_fields = np.concatenate([df.columns for df in results.values()], axis=None)
@@ -588,6 +621,8 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_flag):
             c_default_units_all[run_name] = file_name
         elif s_flag == 'salinity':
             c_default_units_all[run_name] = file_name
+        elif s_flag == 'hydro':
+            c_default_units_all[run_name] = path.basename(file_name)
 
     return append_list, baseline_stack, c_default_units_all, c_field_list_final
 
@@ -618,7 +653,7 @@ def calculated_fields(df_all, c_field_list, c_default_units):
     c_field_list_curr = c_field_list.copy()
     c_default_units_curr = c_default_units.copy()
 
-    # dictionary of what fields each calculated field needs
+    # dictionary of what fields each calculated field needs TODO specify which are for which calview version
     c_fields_for_calculated = {
         'Total System Storage SWP and CVP': ['S_TRNTY', 'S_SHSTA', 'S_OROVL', 'S_FOLSM', 'S_SLUIS_CVP', 'S_SLUIS_SWP'],
         'Total Exports SWP and CVP': ['C_CAA003_SWP', 'C_DMC003', 'C_CAA003_CVP'],
@@ -645,7 +680,7 @@ def calculated_fields(df_all, c_field_list, c_default_units):
         'Old River at Rock Slough Chloride': ['QUALV8.2.2/ROLD024/EC-MEAN']
     }
 
-    # loop through the calculate fields and try anf add them
+    # loop through the calculate fields and try and add them
     for calculated_field in list(c_fields_for_calculated.keys()):
         # grab list of required fields
         sl_needed_fields = c_fields_for_calculated[calculated_field]
@@ -736,7 +771,7 @@ def calculated_fields(df_all, c_field_list, c_default_units):
                     df_all['65-70 (Shasta)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.70.00F SR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.65.00F SR']) / 1000
                     df_all['70+ (Shasta)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.99.00F SR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.70.00F SR']) / 1000
 
-                    # calculate fro folsom
+                    # calculate for folsom
                     df_all['<45 (Folsom)'] = df_all['Stor-Temp/Stor-Temp/Storage.lt.45.00F AR'] / 1000
                     df_all['45-50 (Folsom)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.50.00F AR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.45.00F AR']) / 1000
                     df_all['50-55 (Folsom)'] = (df_all['Stor-Temp/Stor-Temp/Storage.lt.55.00F AR'] - df_all['Stor-Temp/Stor-Temp/Storage.lt.50.00F AR']) / 1000
@@ -761,4 +796,29 @@ def calculated_fields(df_all, c_field_list, c_default_units):
                     c_default_units_curr[calculated_field] = 'MG/L'
                 case _:
                     pass
+    # Dynamically create combined DP fields (EXT + INT) per zone for hydro version
+    ls_dp_ext_fields = [f for f in c_field_list_curr.keys() if f.startswith('DP_') and f.endswith('_EXT')]
+
+    for ext_field in ls_dp_ext_fields:
+        zone = ext_field[len('DP_'):-len('_EXT')]  # e.g. '02', '07N', '60S'
+        int_field = f'DP_{zone}_INT'
+        combined_field = f'DP_{zone}'
+
+        # only create the combined field if both EXT and INT exist in the data
+        if int_field in c_field_list_curr and ext_field in df_all.columns and int_field in df_all.columns:
+
+            # check units match before combining
+            ext_unit = c_default_units_curr.get(ext_field)
+            int_unit = c_default_units_curr.get(int_field)
+            if ext_unit != int_unit:
+                print(f'Units do not match for combined DP field {combined_field}: '
+                      f'{ext_field}={ext_unit}, {int_field}={int_unit}')
+
+            # calculate the combined field
+            df_all[combined_field] = df_all[ext_field] + df_all[int_field]
+
+            # add to field list and units dictionaries
+            c_field_list_curr[combined_field] = f'DP {zone} (Calculated Field)'
+            c_default_units_curr[combined_field] = ext_unit
+
     return df_all, c_field_list_curr, c_default_units_curr

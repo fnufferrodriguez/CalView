@@ -11,6 +11,8 @@ dependencies:
      - bokeh=3.9
      - pyinstaller=6.20
      - rasterio=1.5
+     - geopandas
+     - geoviews
      - pip
      - pip:
           - pydsstools==3.1

@@ -6,6 +6,7 @@ import pandas as pd
 from src.cs3_plotlib import *
 from functools import partial
 from src.csdss_readlib_fullfile import *
+import geopandas as gpd
 
 
 ## Functions that should work for any version of the visualizer
@@ -168,6 +169,16 @@ def update_dss_file_widget(event, file_picker_column, file_picker_col_tracker):
                 max_width=1000,
                 root_directory=os.path.abspath(os.sep)
             )
+        elif event.new == "New Hydro outputs":
+            o_instructions = pn.pane.Markdown("### Select the DSS files to be read in.")
+            o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move all DSS files from 'File Browser' section to 'Selected files' section then click 'Continue'")
+            dss_file = pn.widgets.FileSelector(
+                name='Select CalSim Hydro output DSS file for new run or pickle file for previous run',
+                file_pattern="*.dss",
+                only_files=True,
+                max_width=1000,
+                root_directory=os.path.abspath(os.sep)
+            )
         # Pickle files
         else:
             o_instructions = pn.pane.Markdown('### <span style="color:red">Select the pickle files previously created (diffs.pkl, units.pkl, values.pkl, and fields.pkl)</span>')
@@ -251,7 +262,8 @@ def create_widgets(scenario_names, c_field_list):
         Checkbox for showing year in exceedence table
     exceedance_show_year_check_diffs: obj
         Checkbox for showing year in differences exceedence table
-
+    wba_spatial_select: obj
+        Checkbox for spatial plots widget
     """
 
     # Select which alts to examine
@@ -355,12 +367,17 @@ def create_widgets(scenario_names, c_field_list):
         width=400
     )
 
+    # Create checkbox widget to specify CalSimHydro Files w/ WBA Spatial Data todo make sure this works
+    wba_spatial_sel = pn.widgets.Checkbox(
+        name='Create Spatial Plot (only select if data has WBA specific values, i.e. CalSimHydro Files)'
+    )
+
     # Check boxed for showing years in exceedance tables
     exceedance_show_year_check = pn.widgets.Checkbox(name='Show year in table')
     exceedance_show_year_check_diffs = pn.widgets.Checkbox(name='Show year in table')
 
     # Return all these widgets
-    return scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year, var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs
+    return scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year, var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs, wba_spatial_sel
 
 
 def create_metadata(scenario_names, c_field_list, c_default_units, s_flag):
@@ -402,6 +419,11 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_flag):
         df_run_names.index.name = 'Scenario Name'
         df_run_names.rename(columns={'flow': 'Flow File', 'ec': 'EC File'}, inplace=True)
 
+    elif s_flag == 'hydro':
+        # dictionary of files for each run
+        run_names = {scen: c_default_units[scen] for scen in scenario_names}
+        df_run_names = pd.DataFrame.from_dict(run_names, orient='index')
+        df_run_names.index.name = 'Scenario Name'
     # Title for file names
     o_scen_names_title = pn.pane.Markdown("# Files and names")
 
@@ -415,7 +437,7 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_flag):
     # Title for fields and descriptions
     o_field_names_title = pn.pane.Markdown("# Fields and descriptions")
 
-    # Dictionary with formulas for calculated fields
+    # Dictionary with formulas for calculated fields TODO specify which of these are for which calview
     c_calcs_for_calculated = {
         'Total System Storage SWP and CVP': 'S_TRNTY + S_SHSTA + S_OROVL + S_FOLSM + S_SLUIS_CVP + S_SLUIS_SWP',
         'Total Exports SWP and CVP': 'C_CAA003_SWP + C_DMC003 + C_CAA003_CVP',
@@ -510,15 +532,16 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
 
     # Create the widgets
     (scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year,
-     var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs) = create_widgets(scenario_names, c_field_list)
-
+     var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs, wba_spatial_sel) = create_widgets(scenario_names, c_field_list)
+    #spatial plotting is always on for hydro (intentially not using wba_spatial_sel
     # to update the visibility when period is changed
     wyt_watcher = period_selector.param.watch(partial(hide_show_wyt, header=header), 'value')
 
     # remove comparison scen from the differences dataframe as all values are zero
     df_diffs = df_diffs[df_diffs.Scenario != s_comparison]
 
-    # Create plots
+
+    # Create other plots
 
     # Timeseries plot
     bound_plot_ts = pn.bind(
@@ -696,6 +719,73 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
             i_year=o_year_selector
         )
 
+
+    # TODO make sure this works - maybe move to own function
+    if s_flag == 'hydro':  # only create spatial plot if shapefile is present for hydro
+        #get variables from field list
+
+        #special case for DP
+        def get_spatial_prefix(field):
+            if field.startswith('DP_') and field.endswith(('_EXT', '_INT')):
+                suffix = field.split('_')[-1]  # 'EXT' or 'INT'
+                return f'DP_{suffix}'  # -> 'DP_EXT' or 'DP_INT'
+            return field.split('_')[0]
+
+        ls_spatial_prefixes = sorted(set(get_spatial_prefix(field) for field in c_field_list.keys()))
+        spatial_var_sel = pn.widgets.Select(
+            name='Spatial Variable Selector',
+            options=ls_spatial_prefixes,
+            width=400
+        )
+
+        # Import the Shapefiles based on variable
+        c_gdf_by_prefix = {}
+        for var in ls_spatial_prefixes:
+            if var == "DP" or var == "SR":
+                s_shapefile_path=path.abspath(path.join(path.dirname(__file__), 'WBAs/WBAs/WBAs.shp'))
+                id_col = 'WBA_ID'
+            else:
+                s_shapefile_path=path.abspath(path.join(path.dirname(__file__), 'DUs/DemandUnits~2015.shp'))
+                id_col = 'DU_ID'
+
+            b_have_shapefile = path.exists(s_shapefile_path)
+            if b_have_shapefile: #TODO change so uses diff shapefile depending on variable
+                gdf = gpd.read_file(s_shapefile_path)
+                print("Shapefile columns:", gdf.columns.tolist())
+                gdf = gdf[[id_col, 'geometry']]
+                gdf = gdf.to_crs(4326)  # HVplot requires lat/lon to plot with 'geo=True'
+                c_gdf_by_prefix[var] = gdf
+            else:
+                print(f"Shapefile n ot found for {var}: {s_shapefile_path}")
+
+            # Spatial plots
+
+            bound_plot_spatial = pn.bind(
+                plot_spatial,
+                scenario_list=scen_selector,
+                var_list=var_selector,
+                unit_choice=unit_selector,
+                df_all=df_all_data,
+                c_default_units_all=c_default_units,
+                period_choice=period_selector,
+                s_comparison=s_comparison,
+                spatial_var_choice=spatial_var_sel,
+                c_gdf=c_gdf_by_prefix
+            )
+
+            bound_plot_spatial_diff = pn.bind(
+                plot_spatial,
+                scenario_list=scen_selector,
+                var_list=var_selector,
+                unit_choice=unit_selector,
+                df_all=df_diffs,
+                c_default_units_all=c_default_units,
+                period_choice=period_selector,
+                s_comparison=s_comparison,
+                spatial_var_choice=spatial_var_sel,
+                c_gdf=c_gdf_by_prefix
+            )
+
        # Titles for each plot, same order as the plots
     ts_title = pn.pane.Markdown("# Timeseries Plot"
                                 )
@@ -744,6 +834,21 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
                                   s_comparison=s_comparison,
                                   s_stat=monthly_stat_sel)
 
+
+    if s_flag == 'hydro' and b_have_shapefile: # only create spatial plot for hydro
+        spatial_title = pn.bind(create_plot_title,
+                                s_title="Spatial Plot",
+                                s_comparison='',
+                                s_period=period_selector,
+                                s_stat = spatial_var_sel)
+
+        spatial__diff_title = pn.bind(create_plot_title,
+                                s_title="Spatial Plot",
+                                s_comparison=s_comparison,
+                                s_period=period_selector,
+                                s_stat = spatial_var_sel)
+
+
         # Create the different tables of metadata
     o_metadata = create_metadata(scenario_names, c_field_list, c_default_units, s_flag)
 
@@ -761,6 +866,9 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     grouped_plots = pn.Row()
     exceedance_plots = pn.Row()
     monthly_plots = pn.Column()
+
+    if s_flag == 'hydro':
+        spatial_plots = pn.Column()
 
     if s_flag == 'temperature':
         one_year_plots = pn.Column()
@@ -787,6 +895,12 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         one_year_plots.append(pn.Row(o_year_selector, o_reservoir_toggle))
         one_year_plots.append(bound_one_year_plots)
 
+
+    if s_flag == 'hydro' and b_have_shapefile:  # only create spatial plot for hydro if shapefile present
+        spatial_plots.append(pn.Row(spatial_var_sel))
+        spatial_plots.append(pn.Row(pn.Column(spatial_title, bound_plot_spatial),
+                                    pn.Column(spatial__diff_title, bound_plot_spatial_diff)))
+
     # create the tabs with each page of plots
     if s_flag == 'calsim' or s_flag == 'salinity':
         tabs = pn.Tabs(
@@ -805,6 +919,17 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
             ('Time-Aggregated', grouped_plots),
             ('Exceedance', exceedance_plots),
             ('Monthly Pattern', monthly_plots),
+            ('Metadata', o_metadata)
+        )
+
+    elif s_flag == 'hydro':
+        tabs = pn.Tabs(
+            ('Bar Plot', single_var_plots),
+            ('Timeseries', timeseries_plots),
+            ('Time-Aggregated', grouped_plots),
+            ('Exceedance', exceedance_plots),
+            ('Monthly Pattern', monthly_plots),
+            ('Spatial', spatial_plots),
             ('Metadata', o_metadata)
         )
 
@@ -946,7 +1071,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
         # add option to override TR_fields.txt
         override_TR_fields_instructions = pn.pane.Markdown("""
         # OPTIONAL override default fields:""", renderer='markdown')
-        if s_flag == 'calsim':
+        if s_flag == 'calsim' or s_flag == 'hydro':
             # if calsim, only need the b part for the fields
             override_TR_fields_instructions_deatils = pn.pane.Markdown("""
     
@@ -964,7 +1089,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
             """, renderer='markdown')
             override_TR_fields_instructions_tooltip = pn.widgets.TooltipIcon(
                 value='A default list of fields and descriptions is built in. If you want to override this list, upload a new list here. If no file is selected, the built-in list is used.')
-
+#TODO might need to add specifics here and pull out hydro
         elif s_flag == 'temperature' or s_flag == 'salinity':
             override_TR_fields_instructions_deatils = pn.pane.Markdown("""
 
@@ -981,6 +1106,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
                         > ...
                         """, renderer='markdown')
             override_TR_fields_instructions_tooltip = pn.widgets.TooltipIcon(value='A default list of fields and descriptions is built in. If you want to override this list, upload a new list here. Specify the A, B, and C parts of the DSS path. If no file is selected, the built-in list is used.')
+
         field_column.append(pn.Column(pn.Row(override_TR_fields_instructions, override_TR_fields_instructions_tooltip), override_TR_fields_instructions_deatils))
         field_col_tracker.append("override_instructions")
 
@@ -992,7 +1118,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
         #Also add optional field add text box
         add_field_instructions = pn.pane.Markdown("""
         # OPTIONAL additional fields: """, renderer='markdown')
-        if s_flag == 'calsim':
+        if s_flag == 'calsim' or s_flag == 'hydro':
             # if calsim, only need the b part for the fields
             add_field_instructions_details = pn.pane.Markdown("""
     
@@ -1032,7 +1158,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
         field_column.append(pn.Column(pn.Row(add_field_instructions, add_field_instructions_tooltip), add_field_instructions_details))
         field_col_tracker.append("add_field_instructions")
 
-        if s_flag == 'calsim':
+        if s_flag == 'calsim' or s_flag == 'hydro':
             add_field_text = pn.widgets.TextAreaInput(name='', placeholder='S_FOLSM\tFolsom Storage\nS_SHSTA\tShasta Storage', auto_grow=True, width=500)
         elif s_flag == 'temperature' or s_flag == 'salinity':
             add_field_text = pn.widgets.TextAreaInput(name='', placeholder='Stor-Temp/FOLSOM/STORAGE\tFolsom Storage\nAMERICAN/BLW FOLSOM DAM/FLOW\tAmerican River below Folsom Dam Flow', auto_grow=True, width=500)
@@ -1273,7 +1399,10 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
         # Get default fields and any added ones
         # pulling from TR_fields.txt
-        c_tr_fields = get_trend_fields('TR_fields.txt')
+        if s_flag == 'calsim':
+            c_tr_fields = get_trend_fields('TR_fields.txt')
+        elif s_flag == 'hydro':
+            c_tr_fields = get_trend_fields('TR_fields_CSH.txt')
 
         # get the overridden fields
         override_TR_fields = field_column[field_col_tracker.index("override_file")].value
@@ -1324,7 +1453,6 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
         else:
             c_field_list = c_tr_fields | c_new_fields
         runs = []
-
         #Pair file names with user entered run names
         for file_index, run_index in enumerate(dss_name_indices):
             # structure of runs is [["Description_1", ("File_1.dss")],
