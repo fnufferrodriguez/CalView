@@ -319,7 +319,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
     cfs_taf = np.multiply(durations, (24 * 3600 / 43560 / 1000))
     taf_cfs = np.divide((43560 * 1000 / 24 / 3600), durations)
 
-    b_alt_unit = False #TODO add to hydro plotting?
+    b_alt_unit = False
     ls_alt_vars = []
     s_alt_unit = ''
 
@@ -2173,17 +2173,12 @@ def plot_spatial(scenario_list, var_list, unit_choice, df_all,
     if strip_suffix:
         df_annAvg[id_col] = df_annAvg[id_col].str.rsplit('_', n=1).str[0]
 
-    #todo remove for debugging
-    print("Derived IDs from data:", df_annAvg[id_col].unique())
-    print("IDs in shapefile:", gdf[id_col].unique())
-    print("dtypes:", df_annAvg[id_col].dtype, gdf[id_col].dtype)
-
     gdf = gdf.merge(df_annAvg, left_on=id_col, right_on=id_col, how='inner')
     gdf_plot = gdf[['geometry', 'AnnualAverage']]
     gdf_plot = gdf_plot.dropna(subset=['geometry'])
 
     return pn.Column(
         pn.pane.HoloViews(gdf_plot.hvplot(
-            c='AnnualAverage', geo=True, height=800),
+            c='AnnualAverage', geo=True, frame_height=800),
                           center=True),
         pn.pane.DataFrame(df_annAvg, max_height=700))

@@ -367,7 +367,7 @@ def create_widgets(scenario_names, c_field_list):
         width=400
     )
 
-    # Create checkbox widget to specify CalSimHydro Files w/ WBA Spatial Data todo make sure this works
+    # Create checkbox widget to specify CalSimHydro Files w/  Spatial Data
     wba_spatial_sel = pn.widgets.Checkbox(
         name='Create Spatial Plot (only select if data has WBA specific values, i.e. CalSimHydro Files)'
     )
@@ -749,7 +749,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
                 id_col = 'DU_ID'
 
             b_have_shapefile = path.exists(s_shapefile_path)
-            if b_have_shapefile: #TODO change so uses diff shapefile depending on variable
+            if b_have_shapefile:
                 gdf = gpd.read_file(s_shapefile_path)
                 print("Shapefile columns:", gdf.columns.tolist())
                 gdf = gdf[[id_col, 'geometry']]
@@ -1089,7 +1089,6 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
             """, renderer='markdown')
             override_TR_fields_instructions_tooltip = pn.widgets.TooltipIcon(
                 value='A default list of fields and descriptions is built in. If you want to override this list, upload a new list here. If no file is selected, the built-in list is used.')
-#TODO might need to add specifics here and pull out hydro
         elif s_flag == 'temperature' or s_flag == 'salinity':
             override_TR_fields_instructions_deatils = pn.pane.Markdown("""
 
