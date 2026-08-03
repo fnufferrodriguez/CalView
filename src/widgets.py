@@ -92,7 +92,51 @@ def update_wyt_names(target, event):
                 target.options = c_wyt_names['Default']
                 target.value = c_wyt_names['Default']
     return
+def module_selector(c_flag):
+    """
+    Widget that allows user selection for module type (ex. calsim hydro inputs and outputs)
 
+    Parameters
+    ----------
+    c_flag: dict
+        Dictionary of module options (keys are module names, values are booleans)
+
+    Returns
+    -------
+    mod_selector: object
+        widget
+    """
+    # Select the variables
+    mod_selector = pn.widgets.MultiChoice(
+        name='Module Selector',
+        options=list(c_flag.keys()),
+        value=[k for k, v in c_flag.items() if v],
+        option_limit=len(list(c_flag.keys())),
+        search_option_limit=len(list(c_flag.keys())),
+        width=400
+    )
+
+    mod_selector.param.watch(partial(update_c_flag, c_flag=c_flag), 'value')
+
+    return mod_selector
+
+def update_c_flag(event, c_flag):
+    """
+    Updates c_flag dict in place based on module selector's current selections
+
+    Parameters
+    ----------
+    event: obj
+        Event from the module selector widget
+    c_flag: dict
+        Dictionary of module options to update
+
+    Returns
+    -------
+        none
+    """
+    for key in c_flag:
+        c_flag[key] = key in event.new
 
 def wyt_period_toggle(target, event):
     """
@@ -380,7 +424,7 @@ def create_widgets(scenario_names, c_field_list):
     return scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year, var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs, wba_spatial_sel
 
 
-def create_metadata(scenario_names, c_field_list, c_default_units, s_flag):
+def create_metadata(scenario_names, c_field_list, c_default_units, c_flag):
     """
     Create the metadata section
 
@@ -392,7 +436,7 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_flag):
         Dictionary of fields and names
     c_default_units: dict
         Dictionary of default units
-    s_flag: str
+    c_flag: dict
         Flag for version of the visualizer
 
     Returns
@@ -400,26 +444,26 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_flag):
     o_metadata: obj
         Panel object holding all the metadata
     """
-    if s_flag == 'calsim':
+    if 'calsim' in c_flag:
         # File names for each run
         run_names = {scen: c_default_units[scen] for scen in scenario_names}
         df_run_names = pd.DataFrame.from_dict(run_names, orient='index', columns=['File Name'])
         df_run_names.index.name = 'Scenario Name'
-    elif s_flag == 'temperature':
+    elif 'temperature' in c_flag:
         # dictionary of files for each run
         run_names = {scen: c_default_units[scen] for scen in scenario_names}
         df_run_names = pd.DataFrame.from_dict(run_names, orient='index')
         df_run_names.index.name = 'Scenario Name'
         df_run_names.rename(columns={'calsim_DV': 'CalSim DV File','calsim_SV': 'CalSim SV File', 'AR_WQ_Report': 'American River Output',
                                      'a_CALSIMII_HEC5Q': 'American River Input', 'SR_WQ_Report': 'Sacramento River Output', 's_CALSIMII_HEC5Q': 'Sacramento River Input'}, inplace=True)
-    elif s_flag == 'salinity':
+    elif 'salinity' in c_flag:
         # dictionary of files for each run
         run_names = {scen: c_default_units[scen] for scen in scenario_names}
         df_run_names = pd.DataFrame.from_dict(run_names, orient='index')
         df_run_names.index.name = 'Scenario Name'
         df_run_names.rename(columns={'flow': 'Flow File', 'ec': 'EC File'}, inplace=True)
 
-    elif s_flag == 'hydro':
+    elif 'hydro_out' in c_flag:
         # dictionary of files for each run
         run_names = {scen: c_default_units[scen] for scen in scenario_names}
         df_run_names = pd.DataFrame.from_dict(run_names, orient='index')
@@ -500,7 +544,7 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_flag):
 
 
 def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs, s_comparison,
-                 header, tabs_row, s_flag):
+                 header, tabs_row, c_flag):
     """
     Creates plot objects and lays them out
 
@@ -522,7 +566,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         Panel Row for widget to go in
     tabs_row: object
         Panel Row for tabs to go in
-    s_flag: str
+    c_flag: dict
         Flag for version of the visualizer
 
     Returns
@@ -614,7 +658,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         b_wyt_period_year=wyt_period_selector_year,
         li_wyt_period_months=wyt_period_selector,
         b_show_year=exceedance_show_year_check,
-        s_flag=s_flag
+        c_flag=c_flag
     )
 
     # Exceedance differences plot
@@ -632,7 +676,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         b_wyt_period_year=wyt_period_selector_year,
         li_wyt_period_months=wyt_period_selector,
         b_show_year=exceedance_show_year_check_diffs,
-        s_flag=s_flag
+        c_flag=c_flag
     )
 
     # Bar plot
@@ -699,7 +743,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         li_wyt_selected=wyt_selector
     )
 
-    if s_flag == 'temperature':
+    if 'temperature' in c_flag:
         o_year_selector = pn.widgets.IntInput(name='Year', value=1923, step=1, start=1922, end=2021, width=100)
         o_reservoir_toggle = pn.widgets.RadioButtonGroup(
             name='Units selector',
@@ -721,7 +765,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
 
 
     # TODO make sure this works - maybe move to own function
-    if s_flag == 'hydro':  # only create spatial plot if shapefile is present for hydro
+    if 'hydro_out' in c_flag:  # only create spatial plot if shapefile is present for hydro
         #get variables from field list
 
         #special case for DP
@@ -835,7 +879,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
                                   s_stat=monthly_stat_sel)
 
 
-    if s_flag == 'hydro' and b_have_shapefile: # only create spatial plot for hydro
+    if 'hydro_out' in c_flag and b_have_shapefile: # only create spatial plot for hydro
         spatial_title = pn.bind(create_plot_title,
                                 s_title="Spatial Plot",
                                 s_comparison='',
@@ -850,7 +894,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
 
 
         # Create the different tables of metadata
-    o_metadata = create_metadata(scenario_names, c_field_list, c_default_units, s_flag)
+    o_metadata = create_metadata(scenario_names, c_field_list, c_default_units, c_flag)
 
     # Add widgets to header row in template and refresh objects
     header.append(scen_selector)
@@ -867,10 +911,10 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     exceedance_plots = pn.Row()
     monthly_plots = pn.Column()
 
-    if s_flag == 'hydro':
+    if 'hydro_out' in c_flag:
         spatial_plots = pn.Column()
 
-    if s_flag == 'temperature':
+    if 'temperature' in c_flag:
         one_year_plots = pn.Column()
 
     # Add everything into these containers
@@ -891,18 +935,18 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     monthly_plots.append(pn.Row(monthly_stat_sel))
     monthly_plots.append(pn.Row(pn.Column(monthly_title, bound_monthly_plot), pn.Column(monthly_diffs_title, bound_monthly_diffs_plot)))
 
-    if s_flag == 'temperature':
+    if 'temperature' in c_flag:
         one_year_plots.append(pn.Row(o_year_selector, o_reservoir_toggle))
         one_year_plots.append(bound_one_year_plots)
 
 
-    if s_flag == 'hydro' and b_have_shapefile:  # only create spatial plot for hydro if shapefile present
+    if 'hydro_out' in c_flag and b_have_shapefile:  # only create spatial plot for hydro if shapefile present
         spatial_plots.append(pn.Row(spatial_var_sel))
         spatial_plots.append(pn.Row(pn.Column(spatial_title, bound_plot_spatial),
                                     pn.Column(spatial__diff_title, bound_plot_spatial_diff)))
 
     # create the tabs with each page of plots
-    if s_flag == 'calsim' or s_flag == 'salinity':
+    if 'calsim' in c_flag or 'salinity' in c_flag:
         tabs = pn.Tabs(
             ('Bar Plot', single_var_plots),
             ('Timeseries', timeseries_plots),
@@ -911,7 +955,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
             ('Monthly Pattern', monthly_plots),
             ('Metadata', o_metadata)
         )
-    elif s_flag == 'temperature':
+    elif 'temperature' in c_flag:
         tabs = pn.Tabs(
             ('Single Year Plots', one_year_plots),
             ('Bar Plot', single_var_plots),
@@ -922,7 +966,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
             ('Metadata', o_metadata)
         )
 
-    elif s_flag == 'hydro':
+    elif 'hydro_out' in c_flag:
         tabs = pn.Tabs(
             ('Bar Plot', single_var_plots),
             ('Timeseries', timeseries_plots),
@@ -938,7 +982,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     tabs_row.param.trigger("objects")
 
 
-def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, field_col_tracker, file_picker_display, header, tabs_row, s_flag):
+def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, field_col_tracker, file_picker_display, header, tabs_row, c_flag):
     """
     Adds the widgets to take in the file names
 
@@ -958,7 +1002,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
         Panel Row for widget to go in
     tabs_row: object
         Panel Row for tabs to go in
-    s_flag: str
+    c_flag: str
         Flag for version of the visualizer
     Returns
     -------
@@ -1066,12 +1110,12 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
                 field_col_tracker.append("error_message")
                 return
             # no need for fields section, just start pulling the files
-            update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column, run_name_col_tracker, field_column, field_col_tracker, file_picker_display, header, tabs_row, s_flag)
+            update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column, run_name_col_tracker, field_column, field_col_tracker, file_picker_display, header, tabs_row, c_flag)
 
         # add option to override TR_fields.txt
         override_TR_fields_instructions = pn.pane.Markdown("""
         # OPTIONAL override default fields:""", renderer='markdown')
-        if s_flag == 'calsim' or s_flag == 'hydro':
+        if 'calsim' in c_flag or 'hydro_out' in c_flag:
             # if calsim, only need the b part for the fields
             override_TR_fields_instructions_deatils = pn.pane.Markdown("""
     
@@ -1089,7 +1133,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
             """, renderer='markdown')
             override_TR_fields_instructions_tooltip = pn.widgets.TooltipIcon(
                 value='A default list of fields and descriptions is built in. If you want to override this list, upload a new list here. If no file is selected, the built-in list is used.')
-        elif s_flag == 'temperature' or s_flag == 'salinity':
+        elif 'temperature' in c_flag or 'salinity' in c_flag:
             override_TR_fields_instructions_deatils = pn.pane.Markdown("""
 
                         ## If you would like to override the built in default fields, select a text file with your preferred fields.
@@ -1117,7 +1161,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
         #Also add optional field add text box
         add_field_instructions = pn.pane.Markdown("""
         # OPTIONAL additional fields: """, renderer='markdown')
-        if s_flag == 'calsim' or s_flag == 'hydro':
+        if 'calsim' in c_flag or 'hydro_out' in c_flag:
             # if calsim, only need the b part for the fields
             add_field_instructions_details = pn.pane.Markdown("""
     
@@ -1135,7 +1179,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
     
             """, renderer='markdown')
             add_field_instructions_tooltip = pn.widgets.TooltipIcon(value='If you want to include fields that are not in the default list, add them here. If left blank, only the default list will be pulled from files.')
-        elif s_flag == 'temperature' or s_flag == 'salinity':
+        elif 'temperature' in c_flag or 'salinity' in c_flag:
             add_field_instructions_details = pn.pane.Markdown("""
 
             ## Add additional fields to visualize that are not present in the default list (or your chosen list). 
@@ -1157,9 +1201,9 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
         field_column.append(pn.Column(pn.Row(add_field_instructions, add_field_instructions_tooltip), add_field_instructions_details))
         field_col_tracker.append("add_field_instructions")
 
-        if s_flag == 'calsim' or s_flag == 'hydro':
+        if 'calsim' in c_flag or 'hydro_out' in c_flag:
             add_field_text = pn.widgets.TextAreaInput(name='', placeholder='S_FOLSM\tFolsom Storage\nS_SHSTA\tShasta Storage', auto_grow=True, width=500)
-        elif s_flag == 'temperature' or s_flag == 'salinity':
+        elif 'temperature' in c_flag or 'salinity' in c_flag:
             add_field_text = pn.widgets.TextAreaInput(name='', placeholder='Stor-Temp/FOLSOM/STORAGE\tFolsom Storage\nAMERICAN/BLW FOLSOM DAM/FLOW\tAmerican River below Folsom Dam Flow', auto_grow=True, width=500)
 
         field_column.append(add_field_text)
@@ -1170,7 +1214,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
         # When user is done adding file/run names, save inputs to variables
         done_naming.on_click(partial(update_run_names, file_picker_column=file_picker_column, file_picker_col_tracker=file_picker_col_tracker, run_name_column=run_name_column,
                                      run_name_col_tracker=run_name_col_tracker, field_column=field_column, field_col_tracker=field_col_tracker,
-                                     file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, s_flag=s_flag))
+                                     file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, c_flag=c_flag))
 
         field_column.append(done_naming)
         field_col_tracker.append("done_naming")
@@ -1184,7 +1228,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
 
 def update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column,
                      run_name_col_tracker, field_column, field_col_tracker,
-                     file_picker_display, header, tabs_row, s_flag):
+                     file_picker_display, header, tabs_row, c_flag):
     """
     Looks at what files are selected and reads in the pickle files or DSS files. If DSS, gets the inputted run names and calls the file reading functions. Creates the pickles.
 
@@ -1210,7 +1254,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
         Panel Row for widget to go in
     tabs_row: object
         Panel Row for tabs to go in
-    s_flag: str
+    c_flag: dict
         Flag for version of the visualizer
 
     Returns
@@ -1261,9 +1305,9 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
         # Get default fields and any added ones
         # pulling from TR_fields_temperature.txt
-        if s_flag == 'temperature':
+        if 'temperature' in c_flag:
             c_tr_fields = get_trend_fields('TR_fields_temperature.txt')
-        elif s_flag == 'salinity':
+        elif 'salinity' in c_flag:
             c_tr_fields = get_trend_fields('TR_fields_salinity.txt')
 
         # get the overridden fields
@@ -1335,7 +1379,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
             if comparison_indices[file_index]:
                 # define comparison name variable
                 s_comparison = run_name_column[run_index][0].value
-            if s_flag == "temperature":
+            if 'temperature' in c_flag:
                 c_dss_paths = {'calsim_DV': '',
                                'calsim_SV': '',
                                'AR_WQ_Report': '',
@@ -1356,7 +1400,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
                     elif s_file == 'sacramento':
                         c_dss_paths['SR_WQ_Report'] = os.path.join(s_curr_path, 'SR_WQ_Report.dss')
                         c_dss_paths['s_CALSIMII_HEC5Q'] = os.path.join(s_curr_path, 'CALSIMII_HEC5Q.dss')
-            elif s_flag == "salinity":
+            elif 'salinity' in c_flag:
                 c_dss_paths = {
                     "flow": '',
                     "ec": ''
@@ -1371,7 +1415,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
             runs.append([run_name_column[run_index][0].value, c_dss_paths])
         print(runs)
-        append_list, baseline_stack, c_default_units, c_field_list = file_reader(runs, c_field_list, s_comparison, s_flag)
+        append_list, baseline_stack, c_default_units, c_field_list = file_reader(runs, c_field_list, s_comparison, c_flag)
         pickler(append_list, baseline_stack, c_default_units, c_field_list)
 
         # This runs no matter what. The pickle files allow you to come back and
@@ -1398,9 +1442,9 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
         # Get default fields and any added ones
         # pulling from TR_fields.txt
-        if s_flag == 'calsim':
+        if 'calsim' in c_flag:
             c_tr_fields = get_trend_fields('TR_fields.txt')
-        elif s_flag == 'hydro':
+        elif 'hydro_out' in c_flag:
             c_tr_fields = get_trend_fields('TR_fields_CSH.txt')
 
         # get the overridden fields
@@ -1466,7 +1510,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
             runs.append([run_name_column[run_index][0].value, (files[file_index])])
         print(runs)
-        append_list, baseline_stack, c_default_units, c_field_list = file_reader(runs, c_field_list, s_comparison, s_flag)
+        append_list, baseline_stack, c_default_units, c_field_list = file_reader(runs, c_field_list, s_comparison, c_flag)
 
         pickler(append_list, baseline_stack, c_default_units, c_field_list)
 
@@ -1500,7 +1544,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
     field_column.param.trigger("objects")
 
     #Fill in widgets for other tabs
-    create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs, s_comparison, header, tabs_row, s_flag)
+    create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs, s_comparison, header, tabs_row, c_flag)
 
     # once we have the widgets and graphs, remove the file picker
     for _ in range(len(file_picker_display)):

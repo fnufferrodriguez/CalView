@@ -17,7 +17,7 @@ hv.opts.defaults(hv.opts.Scatter(color=hv.Cycle(['#003E51', '#007396', '#C69214'
 # Visualizer formatting code
 
 # Flag for temperature version
-s_flag = 'temperature'
+c_flag = {'temperature':True}
 
 # path for the compiled executable to find logo
 s_logo_path = path.abspath(path.join(path.dirname(__file__), 'inputs', 'usbr_logo.jpg'))
@@ -95,7 +95,7 @@ file_picker_display = pn.Row(file_picker_column, pn.Column(run_name_column, fiel
 template.main.append(file_picker_display)
 #When done selecting file button is clicked, add text boxes for user to name each file's run
 done_selecting.on_click(partial(add_run_names_widget, file_picker_col_tracker=file_picker_col_tracker, run_name_col_tracker=run_name_col_tracker, field_col_tracker=field_col_tracker,
-                                file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, s_flag=s_flag))
+                                file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, c_flag=c_flag))
 
 # Add a float panel with instructions
 file_instructions = pn.pane.Markdown("## Required file structure: ", disable_anchors=True)

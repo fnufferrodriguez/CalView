@@ -17,7 +17,8 @@ hv.opts.defaults(hv.opts.Scatter(color=hv.Cycle(['#003E51', '#007396', '#C69214'
 # Visualizer formatting code
 
 # Flag for hydro version
-s_flag = 'hydro'
+c_flag = {'hydro_in':False,
+          'hydro_out':False}
 
 # path for the compiled executable to find logo
 s_logo_path = path.abspath(path.join(path.dirname(__file__), 'inputs', 'usbr_logo.jpg'))
@@ -30,6 +31,9 @@ template = pn.template.BootstrapTemplate(
     header_color='black'
 )
 
+#create module selector
+mod_selector = module_selector(c_flag)
+template.main.append(pn.Row(mod_selector))
 # Create row that can be added to template to refresh header(template itself is static)
 header = pn.Row()
 # Now the row can be edited in trigger functions and will refresh to show header/sliders after file picker tab
@@ -96,7 +100,7 @@ file_picker_display = pn.Row(file_picker_column, pn.Column(run_name_column, fiel
 template.main.append(file_picker_display)
 #When done selecting file button is clicked, add text boxes for user to name each file's run
 done_selecting.on_click(partial(add_run_names_widget, file_picker_col_tracker=file_picker_col_tracker, run_name_col_tracker=run_name_col_tracker, field_col_tracker=field_col_tracker,
-                                file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, s_flag=s_flag))
+                                file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, c_flag=c_flag))
 
 # when this file is ran, the site will automatically launch
 pn.serve(template, show=True)

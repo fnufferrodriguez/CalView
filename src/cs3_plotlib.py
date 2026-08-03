@@ -645,7 +645,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                          c_default_units, period_choice, s_comparison, c_field_list,
                          li_wyt_selected, b_wyt_period_year, li_wyt_period_months,
-                         b_show_year, s_flag):
+                         b_show_year, c_flag):
     """
     Creates exceedance plots
 
@@ -675,13 +675,16 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         Months selected for WYT time period
     b_show_year: bool
         Whether to show the year in the table
-    s_flag: str
+    c_flag: dict
         Flag for version of visualizer
     Returns
     -------
     Panel Object
             Plot and table of data as a column
     """
+
+    #key for temp version
+    b_not_temperature = not c_flag.get('temperature', False)
 
     # if the data frame is empty, return a markdown frame. This will happen if only one scenario is selected and its the comparison one. the differences will be empty
     if df_all.empty:
@@ -867,7 +870,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True,
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -879,7 +882,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1001,7 +1004,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1013,7 +1016,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1058,7 +1061,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=c_num_to_month[period_choice] + ' ' + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1070,7 +1073,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=c_num_to_month[period_choice] + ' ' + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1122,7 +1125,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1134,7 +1137,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
