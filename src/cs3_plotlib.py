@@ -144,7 +144,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
     df_plot = df_wide.drop([var for var in df_wide if var not in keeplist])
 
     # round to one decimal place
-    df_plot=df_plot.round(1)
+    df_plot.loc[:, df_plot.columns != 'Date'] = df_plot.loc[:, df_plot.columns != 'Date'].round(1)
 
     keeplist.remove('Date')
     if b_no_unit_flag:
@@ -442,7 +442,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         df_plot = df_grouped[keeplist]
 
         # round to one decimal place
-        df_plot = df_plot.round(1)
+        df_plot.loc[:, df_plot.columns != 'Date'] = df_plot.loc[:, df_plot.columns != 'Date'].round(1)
 
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
@@ -515,7 +515,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             df_plot = df_grouped[keeplist]
 
         # round to one decimal place
-        df_plot = df_plot.round(1)
+        df_plot.loc[:, df_plot.columns != 'Date'] = df_plot.loc[:, df_plot.columns != 'Date'].round(1)
 
         s_title = "## " + s_wyt_col + " "
 
@@ -578,7 +578,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         df_plot = df_grouped[keeplist]
 
         # round to one decimal place
-        df_plot = df_plot.round(1)
+        df_plot.loc[:, df_plot.columns != 'Date'] = df_plot.loc[:, df_plot.columns != 'Date'].round(1)
 
         c_num_to_month = {1: "January", 2: "February", 3: "March", 4: "April",
                           5: "May", 6: "June", 7: "July", 8: "August",
@@ -623,7 +623,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         df_plot = df_grouped[keeplist]
 
         # round to one decimal place
-        df_plot = df_plot.round(1)
+        df_plot.loc[:, df_plot.columns != 'Date'] = df_plot.loc[:, df_plot.columns != 'Date'].round(1)
 
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
@@ -1485,7 +1485,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             df_final.loc[(99, s_scen), var_list_final[0]] = df_temp.values
 
         # round to one decimal place
-        df_final = df_final.round(1)
+        df_final.loc[:, df_final.columns != 'Date'] = df_final.loc[:, df_final.columns != 'Date'].round(1)
         df_plot = df_plot.round(1)
 
         s_title = "## " + s_wyt_col + " "
@@ -1656,7 +1656,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                 df_stats = df_exceed.loc[i_exceedance_prob].to_frame()
 
     # round to one decimal place
-    df_stats = df_stats.round(1)
+    df_stats.loc[:, df_stats.columns != 'Date'] = df_stats.loc[:, df_stats.columns != 'Date'].round(1)
     df_plot = df_plot.round(1)
 
     # calculate bound, pick colors, and plot for all data above
@@ -1946,7 +1946,7 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
                 df_plot.loc[month, df_exceed.columns] = df_exceed.loc[i_exceedance_prob]
     # round to one decimal
     df_plot = df_plot.round(1)
-    df_wide = df_wide.round(1)
+    df_wide.loc[:, df_wide.columns != 'Date'] = df_wide.loc[:, df_wide.columns != 'Date'].round(1)
 
     # reorder to be in water year
     df_plot = df_plot.reindex(index=[10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9])
@@ -2038,7 +2038,7 @@ def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year):
         # create operations plot
         df_plot_ops = df_operations.loc[df_operations['Scenario'] == scenario][['Date'] + ls_taf_vars + ls_cfs_vars]
         df_plot_ops.reset_index(inplace=True, drop=True)
-        df_plot_ops = df_plot_ops.round()
+        df_plot_ops.loc[:, df_plot_ops.columns != 'Date'] = df_plot_ops.loc[:, df_plot_ops.columns != 'Date'].round(1)
 
         f_cfs_min = df_plot_ops[ls_cfs_vars].min().min()
         f_cfs_max = df_plot_ops[ls_cfs_vars].max().max() + 500
