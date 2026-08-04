@@ -157,7 +157,7 @@ def wyt_period_toggle(target, event):
     target.disabled = event.new
 
 
-def update_dss_file_widget(event, file_picker_column, file_picker_col_tracker):
+def update_dss_file_widget(event, module, file_picker_column, file_picker_col_tracker):
     """
     Switches between DSS selector and pickle file selector
 
@@ -165,6 +165,8 @@ def update_dss_file_widget(event, file_picker_column, file_picker_col_tracker):
     ----------
     event: obj
         Toggle for new runs or old runs widget
+    module: str
+        Which module this picker belongs to (e.g. 'calsim', 'hydro_out')
     file_picker_column: obj
         Column holding file picker
     file_picker_col_tracker: list
@@ -183,46 +185,39 @@ def update_dss_file_widget(event, file_picker_column, file_picker_col_tracker):
         file_picker_col_tracker.remove("instructions")
 
         # Add back dss_file widget with updated file pattern
-        # new calsim
-        if event.new == "New CalSim outputs":
-            o_instructions = pn.pane.Markdown("### Select the DSS files to be read in.")
-            o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move all DSS files from 'File Browser' section to 'Selected files' section then click 'Continue'")
-            dss_file = pn.widgets.FileSelector(
-                name='Select CalSim output DSS file for new run or pickle file for previous run',
-                file_pattern="*.dss",
-                only_files=True,
-                max_width=1000,
-                root_directory=os.path.abspath(os.sep)
-            )
-        # new temperature
-        elif event.new == "New temperature outputs":
-            o_instructions = pn.pane.Markdown("### Select the folders to be read in.")
-            o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move all folders from 'File Browser' section to 'Selected files' section then click 'Continue'")
-            dss_file = pn.widgets.FileSelector(
-                name='',
-                only_files=False,
-                max_width=1000,
-                root_directory=os.path.abspath(os.sep)
-            )
-        elif event.new == "New salinity outputs":
-            o_instructions = pn.pane.Markdown("### Select the folders to be read in.")
-            o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move all folders from 'File Browser' section to 'Selected files' section then click 'Continue'")
-            dss_file = pn.widgets.FileSelector(
-                name='',
-                only_files=False,
-                max_width=1000,
-                root_directory=os.path.abspath(os.sep)
-            )
-        elif event.new == "New Hydro outputs":
-            o_instructions = pn.pane.Markdown("### Select the DSS files to be read in.")
-            o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move all DSS files from 'File Browser' section to 'Selected files' section then click 'Continue'")
-            dss_file = pn.widgets.FileSelector(
-                name='Select CalSim Hydro output DSS file for new run or pickle file for previous run',
-                file_pattern="*.dss",
-                only_files=True,
-                max_width=1000,
-                root_directory=os.path.abspath(os.sep)
-            )
+        if event.new == "New outputs":
+            # new calsim
+            if module == 'calsim':
+                o_instructions = pn.pane.Markdown("### Select the DSS files to be read in.")
+                o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move all DSS files from 'File Browser' section to 'Selected files' section then click 'Continue'")
+                dss_file = pn.widgets.FileSelector(
+                    name='Select CalSim output DSS file for new run or pickle file for previous run',
+                    file_pattern="*.dss",
+                    only_files=True,
+                    max_width=1000,
+                    root_directory=os.path.abspath(os.sep)
+                )
+            # new temperature
+            elif module in ('temperature', 'salinity', 'hydro_in'):
+                o_instructions = pn.pane.Markdown("### Select the folders to be read in.")
+                o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move all folders from 'File Browser' section to 'Selected files' section then click 'Continue'")
+                dss_file = pn.widgets.FileSelector(
+                    name='',
+                    only_files=False,
+                    max_width=1000,
+                    root_directory=os.path.abspath(os.sep)
+                )
+            #new hydro
+            elif module == 'hydro_out':
+                o_instructions = pn.pane.Markdown("### Select the DSS files to be read in.")
+                o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move all DSS files from 'File Browser' section to 'Selected files' section then click 'Continue'")
+                dss_file = pn.widgets.FileSelector(
+                    name='Select CalSim Hydro output DSS file for new run or pickle file for previous run',
+                    file_pattern="*.dss",
+                    only_files=True,
+                    max_width=1000,
+                    root_directory=os.path.abspath(os.sep)
+                )
         # Pickle files
         else:
             o_instructions = pn.pane.Markdown('### <span style="color:red">Select the pickle files previously created (diffs.pkl, units.pkl, values.pkl, and fields.pkl)</span>')
@@ -982,7 +977,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     tabs_row.param.trigger("objects")
 
 
-def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, field_col_tracker, file_picker_display, header, tabs_row, c_flag):
+def add_run_names_widget(event, module, file_picker_col_tracker, run_name_col_tracker, field_col_tracker, file_picker_display, header, tabs_row):
     """
     Adds the widgets to take in the file names
 
@@ -990,6 +985,8 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
     ----------
     event: object
         Event that the continue button was clicked
+    module: str
+        Which module this picker belongs to (e.g. 'calsim', 'hydro_out')
     file_picker_col_tracker: list
         Tracks what is in the file picker column and where
     run_name_col_tracker: list
@@ -1002,8 +999,6 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
         Panel Row for widget to go in
     tabs_row: object
         Panel Row for tabs to go in
-    c_flag: str
-        Flag for version of the visualizer
     Returns
     -------
         none
@@ -1096,13 +1091,13 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
             b_units_flag = False
             b_fields_flag = False
             for file in files:
-                if 'diffs.pkl' in file:
+                if 'diffs' in file:
                     b_diffs_flag = True
-                if 'values.pkl' in file:
+                if 'values' in file:
                     b_values_flag = True
-                if 'units.pkl' in file:
+                if 'units' in file:
                     b_units_flag = True
-                if 'fields.pkl' in file:
+                if 'fields' in file:
                     b_fields_flag = True
             if not (b_units_flag and b_diffs_flag and b_values_flag and b_fields_flag):
                 error_message = pn.pane.Markdown("## Make sure all pickle files are selected.")
@@ -1110,12 +1105,12 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
                 field_col_tracker.append("error_message")
                 return
             # no need for fields section, just start pulling the files
-            update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column, run_name_col_tracker, field_column, field_col_tracker, file_picker_display, header, tabs_row, c_flag)
+            update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column, run_name_col_tracker, field_column, field_col_tracker, file_picker_display, header, tabs_row, module)
 
         # add option to override TR_fields.txt
         override_TR_fields_instructions = pn.pane.Markdown("""
         # OPTIONAL override default fields:""", renderer='markdown')
-        if 'calsim' in c_flag or 'hydro_out' in c_flag:
+        if module in ('calsim','hydro_out'):
             # if calsim, only need the b part for the fields
             override_TR_fields_instructions_deatils = pn.pane.Markdown("""
     
@@ -1133,7 +1128,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
             """, renderer='markdown')
             override_TR_fields_instructions_tooltip = pn.widgets.TooltipIcon(
                 value='A default list of fields and descriptions is built in. If you want to override this list, upload a new list here. If no file is selected, the built-in list is used.')
-        elif 'temperature' in c_flag or 'salinity' in c_flag:
+        elif module in ('temperature','salinity'):
             override_TR_fields_instructions_deatils = pn.pane.Markdown("""
 
                         ## If you would like to override the built in default fields, select a text file with your preferred fields.
@@ -1161,7 +1156,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
         #Also add optional field add text box
         add_field_instructions = pn.pane.Markdown("""
         # OPTIONAL additional fields: """, renderer='markdown')
-        if 'calsim' in c_flag or 'hydro_out' in c_flag:
+        if module in ('calsim','hydro_out'):
             # if calsim, only need the b part for the fields
             add_field_instructions_details = pn.pane.Markdown("""
     
@@ -1179,7 +1174,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
     
             """, renderer='markdown')
             add_field_instructions_tooltip = pn.widgets.TooltipIcon(value='If you want to include fields that are not in the default list, add them here. If left blank, only the default list will be pulled from files.')
-        elif 'temperature' in c_flag or 'salinity' in c_flag:
+        elif module in ('temperature','salinity'):
             add_field_instructions_details = pn.pane.Markdown("""
 
             ## Add additional fields to visualize that are not present in the default list (or your chosen list). 
@@ -1201,9 +1196,9 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
         field_column.append(pn.Column(pn.Row(add_field_instructions, add_field_instructions_tooltip), add_field_instructions_details))
         field_col_tracker.append("add_field_instructions")
 
-        if 'calsim' in c_flag or 'hydro_out' in c_flag:
+        if module in ('calsim', 'hydro_out'):
             add_field_text = pn.widgets.TextAreaInput(name='', placeholder='S_FOLSM\tFolsom Storage\nS_SHSTA\tShasta Storage', auto_grow=True, width=500)
-        elif 'temperature' in c_flag or 'salinity' in c_flag:
+        elif module in ('temperature','salinity'):
             add_field_text = pn.widgets.TextAreaInput(name='', placeholder='Stor-Temp/FOLSOM/STORAGE\tFolsom Storage\nAMERICAN/BLW FOLSOM DAM/FLOW\tAmerican River below Folsom Dam Flow', auto_grow=True, width=500)
 
         field_column.append(add_field_text)
@@ -1214,7 +1209,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
         # When user is done adding file/run names, save inputs to variables
         done_naming.on_click(partial(update_run_names, file_picker_column=file_picker_column, file_picker_col_tracker=file_picker_col_tracker, run_name_column=run_name_column,
                                      run_name_col_tracker=run_name_col_tracker, field_column=field_column, field_col_tracker=field_col_tracker,
-                                     file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, c_flag=c_flag))
+                                     file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, module=module))
 
         field_column.append(done_naming)
         field_col_tracker.append("done_naming")
@@ -1228,7 +1223,7 @@ def add_run_names_widget(event, file_picker_col_tracker, run_name_col_tracker, f
 
 def update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column,
                      run_name_col_tracker, field_column, field_col_tracker,
-                     file_picker_display, header, tabs_row, c_flag):
+                     file_picker_display, header, tabs_row, module):
     """
     Looks at what files are selected and reads in the pickle files or DSS files. If DSS, gets the inputted run names and calls the file reading functions. Creates the pickles.
 
@@ -1254,8 +1249,8 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
         Panel Row for widget to go in
     tabs_row: object
         Panel Row for tabs to go in
-    c_flag: dict
-        Flag for version of the visualizer
+    module: str
+        Which module this picker belongs to (e.g. 'calsim', 'hydro_out')
 
     Returns
     -------
@@ -1305,9 +1300,9 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
         # Get default fields and any added ones
         # pulling from TR_fields_temperature.txt
-        if 'temperature' in c_flag:
+        if module == 'temperature':
             c_tr_fields = get_trend_fields('TR_fields_temperature.txt')
-        elif 'salinity' in c_flag:
+        elif module == 'salinity':
             c_tr_fields = get_trend_fields('TR_fields_salinity.txt')
 
         # get the overridden fields
@@ -1379,7 +1374,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
             if comparison_indices[file_index]:
                 # define comparison name variable
                 s_comparison = run_name_column[run_index][0].value
-            if 'temperature' in c_flag:
+            if module == 'temperature':
                 c_dss_paths = {'calsim_DV': '',
                                'calsim_SV': '',
                                'AR_WQ_Report': '',
@@ -1400,7 +1395,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
                     elif s_file == 'sacramento':
                         c_dss_paths['SR_WQ_Report'] = os.path.join(s_curr_path, 'SR_WQ_Report.dss')
                         c_dss_paths['s_CALSIMII_HEC5Q'] = os.path.join(s_curr_path, 'CALSIMII_HEC5Q.dss')
-            elif 'salinity' in c_flag:
+            elif module == 'salinity':
                 c_dss_paths = {
                     "flow": '',
                     "ec": ''
@@ -1415,12 +1410,12 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
             runs.append([run_name_column[run_index][0].value, c_dss_paths])
         print(runs)
-        append_list, baseline_stack, c_default_units, c_field_list = file_reader(runs, c_field_list, s_comparison, c_flag)
-        pickler(append_list, baseline_stack, c_default_units, c_field_list)
+        append_list, baseline_stack, c_default_units, c_field_list = file_reader(runs, c_field_list, s_comparison, module)
+        pickler(append_list, baseline_stack, c_default_units, c_field_list, module)
 
         # This runs no matter what. The pickle files allow you to come back and
         # pull the same variables without waiting for the file reads to complete
-        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles([])
+        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles([], module)
 
         # Write to Excel.
         # try:
@@ -1442,9 +1437,9 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
         # Get default fields and any added ones
         # pulling from TR_fields.txt
-        if 'calsim' in c_flag:
+        if module == 'calsim':
             c_tr_fields = get_trend_fields('TR_fields.txt')
-        elif 'hydro_out' in c_flag:
+        elif module == 'hydro_out':
             c_tr_fields = get_trend_fields('TR_fields_CSH.txt')
 
         # get the overridden fields
@@ -1510,13 +1505,13 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
             runs.append([run_name_column[run_index][0].value, (files[file_index])])
         print(runs)
-        append_list, baseline_stack, c_default_units, c_field_list = file_reader(runs, c_field_list, s_comparison, c_flag)
+        append_list, baseline_stack, c_default_units, c_field_list = file_reader(runs, c_field_list, s_comparison, module)
 
-        pickler(append_list, baseline_stack, c_default_units, c_field_list)
+        pickler(append_list, baseline_stack, c_default_units, c_field_list, module)
 
         # This runs no matter what. The pickle files allow you to come back and
         # pull the same variables without waiting for the file reads to complete
-        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles([])
+        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles([], module)
 
         # Write to Excel.
         # try:
@@ -1529,7 +1524,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
     #Load pickles from previous run
     else:
-        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles(files)
+        df_all_data, df_diffs, c_default_units, c_field_list = load_pickles(files, module)
 
     # need to pull comparison scenario from un pickled files
     s_comparison = c_default_units['comparison scenario']
@@ -1544,7 +1539,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
     field_column.param.trigger("objects")
 
     #Fill in widgets for other tabs
-    create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs, s_comparison, header, tabs_row, c_flag)
+    create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs, s_comparison, header, tabs_row, module)
 
     # once we have the widgets and graphs, remove the file picker
     for _ in range(len(file_picker_display)):

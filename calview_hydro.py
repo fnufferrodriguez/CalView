@@ -5,7 +5,6 @@ import holoviews as hv
 from functools import partial
 
 import pyproj
-print(pyproj.datadir.get_data_dir())
 # Set some default behavior
 pn.extension(sizing_mode='stretch_width')
 pn.extension(notifications=True)
@@ -102,7 +101,7 @@ def build_module_sections(event=None):
         file_picker_col_tracker.append("dss_file")
 
         # Watch the old_new_sel widget and call remove_widget function to update dss_file if a change event occurs
-        choice_watcher = old_new_sel.param.watch(partial(update_dss_file_widget, file_picker_column=file_picker_column,
+        choice_watcher = old_new_sel.param.watch(partial(update_dss_file_widget, module=module, file_picker_column=file_picker_column, #todo why is this not used
                                                          file_picker_col_tracker=file_picker_col_tracker), ['value'],
                                                  onlychanged=False)
         old_new_sel.value = "New outputs"
@@ -139,6 +138,7 @@ def build_module_sections(event=None):
             continue
         watcher = done_selecting.on_click(partial(
             add_run_names_widget,
+            module=module,
             file_picker_col_tracker=c_module_containers[module]['file_picker_col_tracker'],
             run_name_col_tracker=c_module_containers[module]['run_name_col_tracker'],
             field_col_tracker=c_module_containers[module]['field_col_tracker'],
@@ -147,7 +147,6 @@ def build_module_sections(event=None):
                                                  c_module_containers[module]['field_column'])),
             header=c_module_containers[module]['header'],
             tabs_row=c_module_containers[module]['tabs_row'],
-            c_flag=c_flag
         ))
         c_done_selecting_watchers.append(watcher)
 
