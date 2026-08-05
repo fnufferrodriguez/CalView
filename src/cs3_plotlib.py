@@ -645,7 +645,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                          c_default_units, period_choice, s_comparison, c_field_list,
                          li_wyt_selected, b_wyt_period_year, li_wyt_period_months,
-                         b_show_year, c_flag):
+                         b_show_year, s_module):
     """
     Creates exceedance plots
 
@@ -675,8 +675,8 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         Months selected for WYT time period
     b_show_year: bool
         Whether to show the year in the table
-    c_flag: dict
-        Flag for version of visualizer
+    s_module: str
+        Module from c_flag
     Returns
     -------
     Panel Object
@@ -684,7 +684,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
     """
 
     #key for temp version
-    b_not_temperature = not c_flag.get('temperature', False)
+    b_not_temperature = 'temperaturn' not in s_module
 
     # if the data frame is empty, return a markdown frame. This will happen if only one scenario is selected and its the comparison one. the differences will be empty
     if df_all.empty:

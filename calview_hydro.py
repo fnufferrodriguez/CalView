@@ -56,7 +56,7 @@ def build_module_sections(event=None):
 
     module_displays = []
 
-    for module, is_active in c_flag.items():
+    for s_module, is_active in c_flag.items():
         if not is_active:
             continue
 
@@ -101,12 +101,11 @@ def build_module_sections(event=None):
         file_picker_col_tracker.append("dss_file")
 
         # Watch the old_new_sel widget and call remove_widget function to update dss_file if a change event occurs
-        choice_watcher = old_new_sel.param.watch(partial(update_dss_file_widget, module=module, file_picker_column=file_picker_column, #todo why is this not used
-                                                         file_picker_col_tracker=file_picker_col_tracker), ['value'],
-                                                 onlychanged=False)
+        choice_watcher = old_new_sel.param.watch(partial(update_dss_file_widget, s_module=s_module, file_picker_column=file_picker_column, #todo why is this not used
+                                                         file_picker_col_tracker=file_picker_col_tracker), ['value'], onlychanged=False)
         old_new_sel.value = "New outputs"
 
-        c_module_containers[module] = {
+        c_module_containers[s_module] = {
             'header': header,
             'tabs_row': tabs_row,
             'file_picker_title': file_picker_title,
@@ -121,10 +120,10 @@ def build_module_sections(event=None):
         }
 
         display = pn.Row(file_picker_column, pn.Column(run_name_column, field_column), margin=20)
-        c_module_containers[module]['file_picker_display'] = display
+        c_module_containers[s_module]['file_picker_display'] = display
         module_displays.append(display)
 
-        module_column.append(pn.pane.Markdown(f"## {c_modules.get(module, module)}"))
+        module_column.append(pn.pane.Markdown(f"## {c_modules.get(s_module, s_module)}"))
         module_column.append(display)
         module_column.append(header)
         module_column.append(tabs_row)
@@ -133,20 +132,20 @@ def build_module_sections(event=None):
 
     # When done selecting file button is clicked, add text boxes for user to name each file's run for every module
     # When clicked, process every active module using its own containers
-    for module, is_active in c_flag.items():
+    for s_module, is_active in c_flag.items():
         if not is_active:
             continue
         watcher = done_selecting.on_click(partial(
             add_run_names_widget,
-            module=module,
-            file_picker_col_tracker=c_module_containers[module]['file_picker_col_tracker'],
-            run_name_col_tracker=c_module_containers[module]['run_name_col_tracker'],
-            field_col_tracker=c_module_containers[module]['field_col_tracker'],
-            file_picker_display=pn.Row(c_module_containers[module]['file_picker_column'],
-                                       pn.Column(c_module_containers[module]['run_name_column'],
-                                                 c_module_containers[module]['field_column'])),
-            header=c_module_containers[module]['header'],
-            tabs_row=c_module_containers[module]['tabs_row'],
+            s_module=s_module,
+            file_picker_col_tracker=c_module_containers[s_module]['file_picker_col_tracker'],
+            run_name_col_tracker=c_module_containers[s_module]['run_name_col_tracker'],
+            field_col_tracker=c_module_containers[s_module]['field_col_tracker'],
+            file_picker_display=pn.Row(c_module_containers[s_module]['file_picker_column'],
+                                       pn.Column(c_module_containers[s_module]['run_name_column'],
+                                                 c_module_containers[s_module]['field_column'])),
+            header=c_module_containers[s_module]['header'],
+            tabs_row=c_module_containers[s_module]['tabs_row'],
         ))
         c_done_selecting_watchers.append(watcher)
 

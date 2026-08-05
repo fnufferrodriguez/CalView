@@ -417,7 +417,7 @@ def create_widgets(scenario_names, c_field_list):
     return scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year, var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs, wba_spatial_sel
 
 
-def create_metadata(scenario_names, c_field_list, c_default_units, c_flag):
+def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
     """
     Create the metadata section
 
@@ -429,34 +429,34 @@ def create_metadata(scenario_names, c_field_list, c_default_units, c_flag):
         Dictionary of fields and names
     c_default_units: dict
         Dictionary of default units
-    c_flag: dict
-        Flag for version of the visualizer
+    s_module: str
+        Flag for module from c_flag
 
     Returns
     -------
     o_metadata: obj
         Panel object holding all the metadata
     """
-    if 'calsim' in c_flag:
+    if s_module == 'calsim':
         # File names for each run
         run_names = {scen: c_default_units[scen] for scen in scenario_names}
         df_run_names = pd.DataFrame.from_dict(run_names, orient='index', columns=['File Name'])
         df_run_names.index.name = 'Scenario Name'
-    elif 'temperature' in c_flag:
+    elif s_module=='temperature':
         # dictionary of files for each run
         run_names = {scen: c_default_units[scen] for scen in scenario_names}
         df_run_names = pd.DataFrame.from_dict(run_names, orient='index')
         df_run_names.index.name = 'Scenario Name'
         df_run_names.rename(columns={'calsim_DV': 'CalSim DV File','calsim_SV': 'CalSim SV File', 'AR_WQ_Report': 'American River Output',
                                      'a_CALSIMII_HEC5Q': 'American River Input', 'SR_WQ_Report': 'Sacramento River Output', 's_CALSIMII_HEC5Q': 'Sacramento River Input'}, inplace=True)
-    elif 'salinity' in c_flag:
+    elif s_module=='salinity':
         # dictionary of files for each run
         run_names = {scen: c_default_units[scen] for scen in scenario_names}
         df_run_names = pd.DataFrame.from_dict(run_names, orient='index')
         df_run_names.index.name = 'Scenario Name'
         df_run_names.rename(columns={'flow': 'Flow File', 'ec': 'EC File'}, inplace=True)
 
-    elif 'hydro_out' in c_flag:
+    elif s_module=='hydro_out':
         # dictionary of files for each run
         run_names = {scen: c_default_units[scen] for scen in scenario_names}
         df_run_names = pd.DataFrame.from_dict(run_names, orient='index')
@@ -537,7 +537,7 @@ def create_metadata(scenario_names, c_field_list, c_default_units, c_flag):
 
 
 def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs, s_comparison,
-                 header, tabs_row, c_flag):
+                 header, tabs_row, s_module):
     """
     Creates plot objects and lays them out
 
@@ -559,8 +559,8 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         Panel Row for widget to go in
     tabs_row: object
         Panel Row for tabs to go in
-    c_flag: dict
-        Flag for version of the visualizer
+    s_module: str
+        Module from c_flag
 
     Returns
     -------
@@ -651,7 +651,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         b_wyt_period_year=wyt_period_selector_year,
         li_wyt_period_months=wyt_period_selector,
         b_show_year=exceedance_show_year_check,
-        c_flag=c_flag
+        s_module = s_module
     )
 
     # Exceedance differences plot
@@ -669,7 +669,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         b_wyt_period_year=wyt_period_selector_year,
         li_wyt_period_months=wyt_period_selector,
         b_show_year=exceedance_show_year_check_diffs,
-        c_flag=c_flag
+        s_module = s_module
     )
 
     # Bar plot
@@ -736,7 +736,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
         li_wyt_selected=wyt_selector
     )
 
-    if 'temperature' in c_flag:
+    if s_module=='temperature':
         o_year_selector = pn.widgets.IntInput(name='Year', value=1923, step=1, start=1922, end=2021, width=100)
         o_reservoir_toggle = pn.widgets.RadioButtonGroup(
             name='Units selector',
@@ -758,7 +758,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
 
 
     # TODO make sure this works - maybe move to own function
-    if 'hydro_out' in c_flag:  # only create spatial plot if shapefile is present for hydro
+    if s_module=='hydro_out':  # only create spatial plot if shapefile is present for hydro
         #get variables from field list
 
         #special case for DP
@@ -872,7 +872,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
                                   s_stat=monthly_stat_sel)
 
 
-    if 'hydro_out' in c_flag and b_have_shapefile: # only create spatial plot for hydro
+    if s_module=='hydro_out' and b_have_shapefile: # only create spatial plot for hydro
         spatial_title = pn.bind(create_plot_title,
                                 s_title="Spatial Plot",
                                 s_comparison='',
@@ -887,7 +887,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
 
 
         # Create the different tables of metadata
-    o_metadata = create_metadata(scenario_names, c_field_list, c_default_units, c_flag)
+    o_metadata = create_metadata(scenario_names, c_field_list, c_default_units, s_module)
 
     # Add widgets to header row in template and refresh objects
     header.append(scen_selector)
@@ -904,10 +904,10 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     exceedance_plots = pn.Row()
     monthly_plots = pn.Column()
 
-    if 'hydro_out' in c_flag:
+    if s_module=='hydro_out':
         spatial_plots = pn.Column()
 
-    if 'temperature' in c_flag:
+    if s_module=='temperature':
         one_year_plots = pn.Column()
 
     # Add everything into these containers
@@ -928,18 +928,18 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     monthly_plots.append(pn.Row(monthly_stat_sel))
     monthly_plots.append(pn.Row(pn.Column(monthly_title, bound_monthly_plot), pn.Column(monthly_diffs_title, bound_monthly_diffs_plot)))
 
-    if 'temperature' in c_flag:
+    if s_module=='temperature':
         one_year_plots.append(pn.Row(o_year_selector, o_reservoir_toggle))
         one_year_plots.append(bound_one_year_plots)
 
 
-    if 'hydro_out' in c_flag and b_have_shapefile:  # only create spatial plot for hydro if shapefile present
+    if s_module=='hydro_out' and b_have_shapefile:  # only create spatial plot for hydro if shapefile present
         spatial_plots.append(pn.Row(spatial_var_sel))
         spatial_plots.append(pn.Row(pn.Column(spatial_title, bound_plot_spatial),
                                     pn.Column(spatial__diff_title, bound_plot_spatial_diff)))
 
     # create the tabs with each page of plots
-    if 'calsim' in c_flag or 'salinity' in c_flag:
+    if s_module=='calsim' or s_module=='salinity':
         tabs = pn.Tabs(
             ('Bar Plot', single_var_plots),
             ('Timeseries', timeseries_plots),
@@ -948,7 +948,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
             ('Monthly Pattern', monthly_plots),
             ('Metadata', o_metadata)
         )
-    elif 'temperature' in c_flag:
+    elif s_module=='temperature':
         tabs = pn.Tabs(
             ('Single Year Plots', one_year_plots),
             ('Bar Plot', single_var_plots),
@@ -959,7 +959,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
             ('Metadata', o_metadata)
         )
 
-    elif 'hydro_out' in c_flag:
+    elif s_module=='hydro_out':
         tabs = pn.Tabs(
             ('Bar Plot', single_var_plots),
             ('Timeseries', timeseries_plots),
@@ -1207,7 +1207,7 @@ def add_run_names_widget(event, s_module, file_picker_col_tracker, run_name_col_
         # When user is done adding file/run names, save inputs to variables
         done_naming.on_click(partial(update_run_names, file_picker_column=file_picker_column, file_picker_col_tracker=file_picker_col_tracker, run_name_column=run_name_column,
                                      run_name_col_tracker=run_name_col_tracker, field_column=field_column, field_col_tracker=field_col_tracker,
-                                     file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, module=s_module))
+                                     file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, s_module=s_module))
 
         field_column.append(done_naming)
         field_col_tracker.append("done_naming")
