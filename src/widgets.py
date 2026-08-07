@@ -50,6 +50,119 @@ def create_plot_title(s_title, s_comparison='', s_period='', s_stat=''):
             s_final_title += " (Water Year Type)"
     return pn.pane.Markdown(s_final_title)
 
+def clear_container(event, container):
+    """
+    Empties a Panel container of all its children.
+
+    Parameters
+    ----------
+    event: obj
+        Event from the button/widget that triggered this (unused, but required by on_click/watch)
+    container: obj
+        Panel container (Row, Column, etc.) to clear
+
+    Returns
+    -------
+        none
+    """
+    for _ in range(len(container)):
+        container.pop(0)
+
+def build_naming_stage(event, c_module_containers, c_flag, module_column, c_modules):
+    """
+    Clears the file-picker stage entirely and rebuilds the page as the naming stage:
+    shared instructions, then each active module's run-naming/field-overwriting/
+    additional-fields section stacked, then one shared Continue button
+    """
+    for _ in range(len(module_column)):
+        module_column.pop(0)
+
+    ls_update_run_names_kwargs = []
+    any_module_needs_naming = False
+
+    # Build per-module sections first (into fresh containers, not tied to the old file-picker layout), so we know whether to show shared instructions
+    # before finalizing the page order.
+    module_sections = []  # list of (s_module, section_display) to append in order
+
+    for s_module, is_active in c_flag.items():
+        if not is_active:
+            continue
+        containers = c_module_containers[s_module]
+
+        run_name_column = pn.Column()
+        run_name_col_tracker = []
+        field_column = pn.Column()
+        field_col_tracker = []
+
+        result = add_run_names_widget(
+            event,
+            s_module=s_module,
+            file_picker_col_tracker=containers['file_picker_col_tracker'],
+            run_name_col_tracker=run_name_col_tracker,
+            field_col_tracker=field_col_tracker,
+            file_picker_display=containers['file_picker_display'],
+            header=containers['header'],
+            tabs_row=containers['tabs_row'],
+            run_name_column=run_name_column,
+            field_column=field_column,
+        )
+
+        if result is not None:
+            ls_update_run_names_kwargs.append(result)
+            any_module_needs_naming = True
+            module_sections.append((
+                s_module,
+                pn.Card(
+                    run_name_column,
+                    field_column,
+                    title=c_modules.get(s_module, s_module),
+                    collapsible=True,
+                    margin=10,
+                    header_background='#003E51',
+                    header_color='white',
+                    styles={'border': '2px solid #003E51'},
+                )
+            ))
+        # If result is None (pickle path or error), that module has nothing to
+        # show in the naming stage; error messages (if any) were already appended
+        # to field_column inside add_run_names_widget before returning None —
+        # but since field_column here is fresh/local, an error path needs its
+        # own visible section too, so show it if field_column got populated:
+        elif len(field_column) > 0:
+            module_sections.append((
+                s_module,
+                pn.Column(
+                    pn.pane.Markdown(f"## {s_module} — Run Names & Fields"),
+                    field_column,
+                )
+            ))
+
+    # Shared instructions, shown once, only if at least one module has naming widgets
+    if any_module_needs_naming:
+        run_name_instructions = pn.pane.Markdown(""" 
+            # Enter a run name for each file (e.g. Baseline, Alt1, etc.). 
+            """, renderer='markdown')
+        run_name_instructions_comparison = pn.pane.Markdown("""                
+            ## <span style="color:red">One run must be marked for comparison.</span>
+            """, renderer='markdown')
+        run_name_instructions_tooltip = pn.widgets.TooltipIcon(
+            value='A plot of differences will be created based off this scenario.')
+        module_column.append(
+            pn.Column(run_name_instructions, pn.Row(run_name_instructions_comparison, run_name_instructions_tooltip))
+        )
+
+    # Stack each module's section, in order
+    for s_module, section in module_sections:
+        module_column.append(section)
+
+    # Shared Continue button
+    if len(ls_update_run_names_kwargs) > 0:
+        done_naming = pn.widgets.Button(name="Continue", width=500, button_type='primary')
+        for kwargs in ls_update_run_names_kwargs:
+            done_naming.on_click(partial(update_run_names, **kwargs))
+        module_column.append(done_naming)
+
+    module_column.param.trigger("objects")
 
 def update_wyt_names(target, event):
     """
@@ -975,9 +1088,9 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     tabs_row.param.trigger("objects")
 
 
-def add_run_names_widget(event, s_module, file_picker_col_tracker, run_name_col_tracker, field_col_tracker, file_picker_display, header, tabs_row):
+def add_run_names_widget(event, s_module, file_picker_col_tracker, run_name_col_tracker, field_col_tracker, file_picker_display, header, tabs_row, run_name_column, field_column):
     """
-    Adds the widgets to take in the file names
+    Creates the widgets to take in the file names for one module
 
     Parameters
     ----------
@@ -1001,10 +1114,7 @@ def add_run_names_widget(event, s_module, file_picker_col_tracker, run_name_col_
     -------
         none
     """
-    # Pull out each column from the file picker display
     file_picker_column = file_picker_display[0]
-    run_name_column = file_picker_display[1][0]
-    field_column = file_picker_display[1][1]
 
     # look for old error message and remove
     if 'error_message' in field_col_tracker:
@@ -1026,17 +1136,6 @@ def add_run_names_widget(event, s_module, file_picker_col_tracker, run_name_col_
     if len(files) > 0:
         # Temperature will pass in folders
         if path.isdir(files[0]):
-            run_name_instructions = pn.pane.Markdown(""" 
-                            # Enter a scenario name for each folder (e.g. NAA, Alt1, etc.). 
-                            """, renderer='markdown'
-                                                     )
-            run_name_instructions_comparison = pn.pane.Markdown("""                
-                            ## <span style="color:red">One run must be marked for comparison.</span>
-                            """, renderer='markdown'
-                                                                )
-            run_name_instructions_tooltip = pn.widgets.TooltipIcon(value='A plot of differences will be created based off this scenario.')
-            run_name_column.append(pn.Column(run_name_instructions, pn.Row(run_name_instructions_comparison, run_name_instructions_tooltip)))
-            run_name_col_tracker.append("run_name_instructions")
 
             # have user provide run names for each file, new scenario has been selected
             for folder in files:
@@ -1054,17 +1153,6 @@ def add_run_names_widget(event, s_module, file_picker_col_tracker, run_name_col_
                 run_name_col_tracker.append("dss_run_name")
         # DSS files
         elif "dss" in files[0].rsplit(".", 1)[1]:
-            run_name_instructions = pn.pane.Markdown(""" 
-                # Enter a run name for each file (e.g. Baseline, Alt1, etc.). 
-                """, renderer='markdown'
-                                                     )
-            run_name_instructions_comparison = pn.pane.Markdown("""                
-                ## <span style="color:red">One run must be marked for comparison.</span>
-                """, renderer='markdown'
-                                                                )
-            run_name_instructions_tooltip = pn.widgets.TooltipIcon(value='A plot of differences will be created based off this scenario.')
-            run_name_column.append(pn.Column(run_name_instructions, pn.Row(run_name_instructions_comparison, run_name_instructions_tooltip)))
-            run_name_col_tracker.append("run_name_instructions")
 
             #have user provide run names for each file, new scenario has been selected
             for file in files:
@@ -1101,10 +1189,10 @@ def add_run_names_widget(event, s_module, file_picker_col_tracker, run_name_col_
                 error_message = pn.pane.Markdown("## Make sure all pickle files are selected.")
                 field_column.append(error_message)
                 field_col_tracker.append("error_message")
-                return
+                return None
             # no need for fields section, just start pulling the files
             update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column, run_name_col_tracker, field_column, field_col_tracker, file_picker_display, header, tabs_row, s_module)
-
+            return None
         # add option to override TR_fields.txt
         override_TR_fields_instructions = pn.pane.Markdown("""
         # OPTIONAL override default fields:""", renderer='markdown')
@@ -1201,22 +1289,22 @@ def add_run_names_widget(event, s_module, file_picker_col_tracker, run_name_col_
 
         field_column.append(add_field_text)
         field_col_tracker.append("add_field_text")
+    else:
+        clear_container(event,file_picker_display)
+        return None
 
-        # Add another continue button for when user is done adding run names to files
-        done_naming = pn.widgets.Button(name="Continue", width=500, button_type='primary')
-        # When user is done adding file/run names, save inputs to variables
-        done_naming.on_click(partial(update_run_names, file_picker_column=file_picker_column, file_picker_col_tracker=file_picker_col_tracker, run_name_column=run_name_column,
-                                     run_name_col_tracker=run_name_col_tracker, field_column=field_column, field_col_tracker=field_col_tracker,
-                                     file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, s_module=s_module))
-
-        field_column.append(done_naming)
-        field_col_tracker.append("done_naming")
-
-    #Refresh field file_picker_column
-    field_column.param.trigger("objects")
-
-    #Refresh run names file_picker_column
-    run_name_column.param.trigger("objects")  # Trigger UI update
+    return {
+        'file_picker_column': file_picker_column,
+        'file_picker_col_tracker': file_picker_col_tracker,
+        'run_name_column': run_name_column,
+        'run_name_col_tracker': run_name_col_tracker,
+        'field_column': field_column,
+        'field_col_tracker': field_col_tracker,
+        'file_picker_display': file_picker_display,
+        'header': header,
+        'tabs_row': tabs_row,
+        's_module': s_module,
+    }
 
 
 def update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column,
@@ -1538,7 +1626,6 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
     #Fill in widgets for other tabs
     create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs, s_comparison, header, tabs_row, s_module)
-
     # once we have the widgets and graphs, remove the file picker
     for _ in range(len(file_picker_display)):
         file_picker_display.pop(0)
