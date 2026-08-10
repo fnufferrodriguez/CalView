@@ -640,6 +640,11 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
     else:
         df_field_names['Spatial Eligible'] = False
 
+    # temperature eligibility
+    if s_module == 'temperature':
+        df_field_names['Single Year Eligible'] = True
+    else:
+        df_field_names['Single Year Eligible'] = False
 
     # Title for fields and descriptions
     o_field_names_title = pn.pane.Markdown("# Fields and descriptions")
@@ -755,6 +760,7 @@ def create_plots(event, module_results, module_column, header, tabs_row):
     s_comparison = None
     ls_metadata_panels = []
     ls_field_names_dfs = []
+    single_year_scenarios = []
 
     for df_all_data, df_diffs, c_default_units, c_field_list, s_mod_comparison, scenario_names, s_module in module_results:
         ls_df_all.append(df_all_data)
@@ -768,6 +774,9 @@ def create_plots(event, module_results, module_column, header, tabs_row):
         o_metadata, df_field_names = create_metadata(scenario_names, c_field_list, c_default_units, s_module)
         ls_metadata_panels.append(o_metadata)
         ls_field_names_dfs.append(df_field_names)
+
+        if df_field_names['Single Year Eligible'].any():
+            single_year_scenarios.extend(scenario_names)
 
     df_all_data_combined = pd.concat(ls_df_all, ignore_index=True)
     df_diffs_combined = pd.concat(ls_df_diffs, ignore_index=True)
@@ -809,6 +818,9 @@ def create_plots(event, module_results, module_column, header, tabs_row):
 
     all_fields = df_field_names_combined.index.tolist()
     spatial_fields = df_field_names_combined[df_field_names_combined['Spatial Eligible']].index.tolist()
+
+    single_year_fields = df_field_names_combined[df_field_names_combined['Single Year Eligible']].index.tolist()
+    b_have_single_year = len(single_year_fields) > 0
 
     var_selector_bar = make_var_selector('Variable Selector', all_fields)
     var_selector_ts = make_var_selector('Variable Selector', all_fields)
@@ -874,7 +886,7 @@ def create_plots(event, module_results, module_column, header, tabs_row):
         b_wyt_period_year=wyt_period_selector_year,
         li_wyt_period_months=wyt_period_selector
     )
-    #
+
     # # Exceedance plot todo fix
     # bound_plot_exceedance = pn.bind(
     #     plot_time_exceedance,
@@ -974,27 +986,28 @@ def create_plots(event, module_results, module_column, header, tabs_row):
         period_choice=period_selector,
         li_wyt_selected=wyt_selector
     )
-    #
-    # #todo add temp to metadata and branch based on that here
-    # if s_module=='temperature':
-    #     o_year_selector = pn.widgets.IntInput(name='Year', value=1923, step=1, start=1922, end=2021, width=100)
-    #     o_reservoir_toggle = pn.widgets.RadioButtonGroup(
-    #         name='Units selector',
-    #         options=['Shasta', 'Folsom'],
-    #         button_style='outline',
-    #         button_type='primary',
-    #         width=200,
-    #         margin=32
-    #     )
-    #     # add in other plots
-    #     bound_one_year_plots = pn.bind(
-    #         plot_single_year,
-    #         scenario_list=scen_selector,
-    #         df_all=df_all_data_combined,
-    #         c_field_list=c_field_list_all,
-    #         s_reservoir=o_reservoir_toggle,
-    #         i_year=o_year_selector
-    #     )
+
+    if b_have_single_year:
+        c_field_list_single_year = {f: d for f, d in c_field_list_all.items() if f in single_year_fields}
+        o_year_selector = pn.widgets.IntInput(name='Year', value=1923, step=1, start=1922, end=2021, width=100)
+        o_reservoir_toggle = pn.widgets.RadioButtonGroup(
+            name='Units selector',
+            options=['Shasta', 'Folsom'],
+            button_style='outline',
+            button_type='primary',
+            width=200,
+            margin=32
+        )
+        var_selector_single_year = make_var_selector('Variable Selector', single_year_fields)
+        # add in other plots
+        bound_one_year_plots = pn.bind(
+            plot_single_year,
+            scenario_list=single_year_scenarios,
+            df_all=df_all_data_combined,
+            c_field_list=c_field_list_single_year,
+            s_reservoir=o_reservoir_toggle,
+            i_year=o_year_selector
+        )
 
 
     # TODO make sure this works - maybe move to own function
@@ -1138,8 +1151,8 @@ def create_plots(event, module_results, module_column, header, tabs_row):
     if b_have_spatial:
         spatial_plots = pn.Column()
 
-    # if s_module=='temperature': #todo change
-    #     one_year_plots = pn.Column()
+    if b_have_single_year:
+        one_year_plots = pn.Column()
 
     # Add everything into these containers
     single_var_widgets = pn.Row(bar_stat_sel, var_selector_bar)
@@ -1159,9 +1172,9 @@ def create_plots(event, module_results, module_column, header, tabs_row):
     monthly_plots.append(pn.Row(monthly_stat_sel))
     monthly_plots.append(pn.Row(pn.Column(monthly_title, var_selector_monthly, bound_monthly_plot), pn.Column(monthly_diffs_title, bound_monthly_diffs_plot)))
 
-    # if s_module=='temperature':
-    #     one_year_plots.append(pn.Row(o_year_selector, o_reservoir_toggle))
-    #     one_year_plots.append(bound_one_year_plots)
+    if b_have_single_year:
+        one_year_plots.append(pn.Row(o_year_selector, o_reservoir_toggle))
+        one_year_plots.append(bound_one_year_plots)
 
 
     if b_have_spatial and b_have_shapefile:  # only create spatial plot for hydro if shapefile present
@@ -1180,6 +1193,8 @@ def create_plots(event, module_results, module_column, header, tabs_row):
 
     if b_have_spatial and b_have_shapefile:
         ls_tabs.append(('Spatial', spatial_plots))
+    if b_have_single_year:
+        ls_tabs.insert(0, ('Temperature Plots', one_year_plots))
 
     ls_tabs.append(('Metadata', pn.Column(*ls_metadata_panels)))
 

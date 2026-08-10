@@ -17,10 +17,12 @@ hv.opts.defaults(hv.opts.Scatter(color=hv.Cycle(['#003E51', '#007396', '#C69214'
 
 # Flag for hydro version
 c_flag = {'calsim':False, #todo change back to hydro_in
-          'hydro_out':True}
+          'hydro_out':True,
+          'temperature':False}
 c_modules = {
     'calsim':"CalSim Outputs",
-    'hydro_out':"CalSim Hydro Outputs"
+    'hydro_out':"CalSim Hydro Outputs",
+    'temperature': "Temperature"
 }
 
 # path for the compiled executable to find logo
