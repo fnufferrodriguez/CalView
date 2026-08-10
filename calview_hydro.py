@@ -35,7 +35,8 @@ template = pn.template.BootstrapTemplate(
 )
 
 module_column = pn.Column()
-
+header = pn.Row()
+tabs_row = pn.Row()
 
 # Shared widgets - used by all modules
 
@@ -66,9 +67,6 @@ c_done_selecting_watchers = []
 def build_module_widgets(s_module):
     """Builds and registers the per-module stage for one module (file picker, additional fields, metadata).
     Returns the display row for that module."""
-
-    header = pn.Row()
-    tabs_row = pn.Row()
 
     file_picker_column = pn.Column()
     file_picker_col_tracker = []
@@ -150,8 +148,6 @@ def build_module_sections(event=None):
 
         module_column.append(pn.pane.Markdown(f"## {c_modules.get(s_module, s_module)}"))
         module_column.append(display)
-        module_column.append(c_module_containers[s_module]['header'])
-        module_column.append(c_module_containers[s_module]['tabs_row'])
 
     module_column.append(done_selecting_row)  # clear the button's row once clicked, using the top-level helper instead of a closure
 
@@ -161,7 +157,10 @@ def build_module_sections(event=None):
         c_module_containers=c_module_containers,
         c_flag=c_flag,
         module_column=module_column,
-        c_modules=c_modules
+        c_modules=c_modules,
+        header=header,
+        tabs_row=tabs_row,
+        old_new_sel=old_new_sel
     ))
     c_done_selecting_watchers.append(watcher)
 
@@ -172,6 +171,8 @@ mod_selector.param.watch(build_module_sections, 'value')
 mod_selector_title = pn.pane.Markdown("""# Select Modules""")
 mod_selector_row = pn.Column(pn.Row(mod_selector_title), pn.Row(mod_selector))
 template.main.append(module_column)
+template.main.append(header)
+template.main.append(tabs_row)
 
 build_module_sections()
 

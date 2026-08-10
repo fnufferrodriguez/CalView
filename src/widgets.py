@@ -68,14 +68,53 @@ def clear_container(event, container):
     for _ in range(len(container)):
         container.pop(0)
 
-def build_naming_stage(event, c_module_containers, c_flag, module_column, c_modules):
+def build_naming_stage(event, c_module_containers, c_flag, module_column, c_modules, header, tabs_row, old_new_sel):
     """
     Clears the file-picker stage entirely and rebuilds the page as the naming stage:
     shared instructions, then each active module's run-naming/field-overwriting/
     additional-fields section stacked, then one shared Continue button
+
+    Parameters
+    ----------
+    event: obj
+        Event from the button/widget that triggered this (unused, but required by on_click/watch)
+    c_module_containers: dict
+        Per-module dict of the Panel containers (file_picker_col_tracker, file_picker_display,
+        header, tabs_row) needed to build that module's naming section
+    c_flag: dict
+        Dictionary of module options (keys are module names, values are booleans for active/inactive)
+    module_column: obj
+        Panel Column that holds the naming stage; cleared and rebuilt by this function
+    c_modules: dict
+        Dictionary mapping module keys to their display names, used for Card titles
+
+    Returns
+    -------
+        none
     """
     for _ in range(len(module_column)):
         module_column.pop(0)
+
+
+    if old_new_sel.value == "Previously generated visuals":
+        module_results = []
+        for s_module, is_active in c_flag.items():
+            if not is_active:
+                continue
+            containers = c_module_containers[s_module]
+            result = add_run_names_widget(
+                event, s_module=s_module,
+                file_picker_col_tracker=containers['file_picker_col_tracker'],
+                run_name_col_tracker=[], field_col_tracker=[],
+                file_picker_display=containers['file_picker_display'],
+                header=containers['header'], tabs_row=containers['tabs_row'],
+                run_name_column=pn.Column(), field_column=pn.Column(),
+            )
+            if result is not None:
+                module_results.append(result)
+        create_plots(event, module_results=module_results, module_column=module_column,
+                     header=header, tabs_row=tabs_row)
+        return
 
     ls_update_run_names_kwargs = []
     any_module_needs_naming = False
@@ -157,12 +196,18 @@ def build_naming_stage(event, c_module_containers, c_flag, module_column, c_modu
 
     # Shared Continue button
     if len(ls_update_run_names_kwargs) > 0:
-        done_naming = pn.widgets.Button(name="Continue", width=500, button_type='primary')
-        for kwargs in ls_update_run_names_kwargs:
-            done_naming.on_click(partial(update_run_names, **kwargs))
-        module_column.append(done_naming)
+        def on_continue(event, ls_kwargs):
+            module_results = []
+            for kwargs in ls_kwargs:
+                result = update_run_names(event, **kwargs)
+                if result is not None:
+                    module_results.append(result)
+            create_plots(event, module_results=module_results, module_column=module_column,
+                         header=header, tabs_row=tabs_row)
 
-    module_column.param.trigger("objects")
+        done_naming = pn.widgets.Button(name="Continue", width=500, button_type='primary')
+        done_naming.on_click(partial(on_continue, ls_kwargs=ls_update_run_names_kwargs))
+        module_column.append(done_naming)
 
 def update_wyt_names(target, event):
     """
@@ -517,7 +562,7 @@ def create_widgets(scenario_names, c_field_list):
         width=400
     )
 
-    # Create checkbox widget to specify CalSimHydro Files w/  Spatial Data
+    # Create checkbox widget to specify CalSimHydro Files w/  Spatial Data todo remove
     wba_spatial_sel = pn.widgets.Checkbox(
         name='Create Spatial Plot (only select if data has WBA specific values, i.e. CalSimHydro Files)'
     )
@@ -549,6 +594,8 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
     -------
     o_metadata: obj
         Panel object holding all the metadata
+    df_field_names: DataFrame
+        Field-level metadata (description, default units, module...) indexed by field
     """
     if s_module == 'calsim':
         # File names for each run
@@ -584,10 +631,20 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
     # Add in units for each field
     df_field_names['Default Units'] = df_field_names.index.map(c_default_units)
 
+    # Module for each field
+    df_field_names['Module'] = s_module
+
+    # Spatial Eligibility
+    if s_module == 'hydro_out':
+        df_field_names['Spatial Eligible'] = True
+    else:
+        df_field_names['Spatial Eligible'] = False
+
+
     # Title for fields and descriptions
     o_field_names_title = pn.pane.Markdown("# Fields and descriptions")
 
-    # Dictionary with formulas for calculated fields TODO specify which of these are for which calview
+    # Dictionary with formulas for calculated fields TODO specify which of these are for which calview, add hydro calcs to here
     c_calcs_for_calculated = {
         'Total System Storage SWP and CVP': 'S_TRNTY + S_SHSTA + S_OROVL + S_FOLSM + S_SLUIS_CVP + S_SLUIS_SWP',
         'Total Exports SWP and CVP': 'C_CAA003_SWP + C_DMC003 + C_CAA003_CVP',
@@ -646,13 +703,20 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
         )
     )
 
-    return o_metadata
+    return o_metadata, df_field_names
 
 
-def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs, s_comparison,
-                 header, tabs_row, s_module):
+def create_plots(event, module_results, module_column, header, tabs_row):
     """
-    Creates plot objects and lays them out
+    Combines each active module's loaded data into shared structures, builds each
+    module's metadata panel, clears the naming stage, and builds the shared plotting
+    tabs. Works identically whether module_results came from the pickle-loading path
+    or the DSS-naming path, since both produce the same per-module tuple shape via
+    update_run_names.
+
+    Each plotting tab gets its own independent variable selector, filtered to only
+    the fields valid for that tab based on the combined field metadata (e.g. the
+    Spatial tab's selector only offers fields marked Spatial Eligible).
 
     Parameters
     ----------
@@ -679,17 +743,79 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     -------
         none
     """
+    #all modules failed validation
+    if len(module_results)==0:
+        return
 
-    # Create the widgets
-    (scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year,
-     var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs, wba_spatial_sel) = create_widgets(scenario_names, c_field_list)
-    #spatial plotting is always on for hydro (intentially not using wba_spatial_sel
-    # to update the visibility when period is changed
-    wyt_watcher = period_selector.param.watch(partial(hide_show_wyt, header=header), 'value')
+    #combining all module data
+    ls_df_all = []
+    ls_df_diffs = []
+    c_field_list_all = {}
+    c_default_units_all = {}
+    s_comparison = None
+    ls_metadata_panels = []
+    ls_field_names_dfs = []
+
+    for df_all_data, df_diffs, c_default_units, c_field_list, s_mod_comparison, scenario_names, s_module in module_results:
+        ls_df_all.append(df_all_data)
+        ls_df_diffs.append(df_diffs)
+        c_field_list_all.update(c_field_list)
+        c_default_units_all.update(c_default_units)
+        if s_comparison is None:
+            s_comparison = s_mod_comparison  # todo: first module wins, revisit later
+
+        #create metadata
+        o_metadata, df_field_names = create_metadata(scenario_names, c_field_list, c_default_units, s_module)
+        ls_metadata_panels.append(o_metadata)
+        ls_field_names_dfs.append(df_field_names)
+
+    df_all_data_combined = pd.concat(ls_df_all, ignore_index=True)
+    df_diffs_combined = pd.concat(ls_df_diffs, ignore_index=True)
+    df_field_names_combined = pd.concat(ls_field_names_dfs)
+    scenario_names_combined = df_all_data_combined['Scenario'].unique().tolist()
 
     # remove comparison scen from the differences dataframe as all values are zero
-    df_diffs = df_diffs[df_diffs.Scenario != s_comparison]
+    df_diffs_combined = df_diffs_combined[df_diffs_combined.Scenario != s_comparison]
 
+    # naming stage no longer needed now that all modules' data is loaded and combined
+    for _ in range(len(module_column)):
+        module_column.pop(0)
+
+    # Create the shared widgets
+    (scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year,
+     var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs, wba_spatial_sel) = create_widgets(scenario_names_combined, c_field_list_all)
+    #spatial plotting is always on for hydro (intentially not using wba_spatial_sel
+    # to update the visibility when period is changed todo remove?
+    wyt_watcher = period_selector.param.watch(partial(hide_show_wyt, header=header), 'value')
+
+    header.append(scen_selector)
+    header.append(pn.Column(period_selector, pn.Column(wyt_selector, pn.Row(wyt_period_selector_year, wyt_period_selector), visible=False), max_width=300))
+    header.append(unit_selector)
+    header.param.trigger("objects")
+
+    #per tab variable selectors, each filtered by combined field metadata
+    c_description_to_field_all = {desc: field for field, desc in c_field_list_all.items()}
+
+    def make_var_selector(name, valid_fields):
+        options = {desc: field for desc, field in c_description_to_field_all.items() if field in valid_fields}
+        return pn.widgets.MultiChoice(
+            name=name,
+            options=options,
+            value=[list(options.values())[0]] if options else [],
+            option_limit=len(options),
+            search_option_limit=len(options),
+            width=400
+        )
+
+    all_fields = df_field_names_combined.index.tolist()
+    spatial_fields = df_field_names_combined[df_field_names_combined['Spatial Eligible']].index.tolist()
+
+    var_selector_bar = make_var_selector('Variable Selector', all_fields)
+    var_selector_ts = make_var_selector('Variable Selector', all_fields)
+    var_selector_grouped = make_var_selector('Variable Selector', all_fields)
+    var_selector_exceedance = make_var_selector('Variable Selector', all_fields)
+    var_selector_monthly = make_var_selector('Variable Selector', all_fields)
+    var_selector_spatial = make_var_selector('Variable Selector', spatial_fields)
 
     # Create other plots
 
@@ -697,37 +823,37 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     bound_plot_ts = pn.bind(
         plot_values,
         scenario_list=scen_selector,
-        var_list=var_selector,
+        var_list=var_selector_ts,
         unit_choice=unit_selector,
-        df_all=df_all_data,
-        c_default_units=c_default_units,
+        df_all=df_all_data_combined,
+        c_default_units=c_default_units_all,
         s_comparison=s_comparison,
-        c_field_list=c_field_list
+        c_field_list=c_field_list_all
     )
 
     # Differences timeseries plot
     bound_plot_diffs_ts = pn.bind(
         plot_values,
         scenario_list=scen_selector,
-        var_list=var_selector,
+        var_list=var_selector_ts,
         unit_choice=unit_selector,
-        df_all=df_diffs,
-        c_default_units=c_default_units,
+        df_all=df_diffs_combined,
+        c_default_units=c_default_units_all,
         s_comparison=s_comparison,
-        c_field_list=c_field_list
+        c_field_list=c_field_list_all
     )
 
     # Time aggregated plot
     bound_plot_grouped = pn.bind(
         plot_time_group,
         scenario_list=scen_selector,
-        var_list=var_selector,
+        var_list=var_selector_grouped,
         unit_choice=unit_selector,
-        df_all=df_all_data,
-        c_default_units=c_default_units,
+        df_all=df_all_data_combined,
+        c_default_units=c_default_units_all,
         period_choice=period_selector,
         s_comparison=s_comparison,
-        c_field_list=c_field_list,
+        c_field_list=c_field_list_all,
         li_wyt_selected=wyt_selector,
         b_wyt_period_year=wyt_period_selector_year,
         li_wyt_period_months=wyt_period_selector
@@ -737,66 +863,66 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     bound_plot_grouped_diff = pn.bind(
         plot_time_group,
         scenario_list=scen_selector,
-        var_list=var_selector,
+        var_list=var_selector_grouped,
         unit_choice=unit_selector,
-        df_all=df_diffs,
-        c_default_units=c_default_units,
+        df_all=df_diffs_combined,
+        c_default_units=c_default_units_all,
         period_choice=period_selector,
         s_comparison=s_comparison,
-        c_field_list=c_field_list,
+        c_field_list=c_field_list_all,
         li_wyt_selected=wyt_selector,
         b_wyt_period_year=wyt_period_selector_year,
         li_wyt_period_months=wyt_period_selector
     )
-
-    # Exceedance plot
-    bound_plot_exceedance = pn.bind(
-        plot_time_exceedance,
-        scenario_list=scen_selector,
-        var_list=var_selector,
-        unit_choice=unit_selector,
-        df_all=df_all_data,
-        c_default_units=c_default_units,
-        period_choice=period_selector,
-        s_comparison=s_comparison,
-        c_field_list=c_field_list,
-        li_wyt_selected=wyt_selector,
-        b_wyt_period_year=wyt_period_selector_year,
-        li_wyt_period_months=wyt_period_selector,
-        b_show_year=exceedance_show_year_check,
-        s_module = s_module
-    )
-
-    # Exceedance differences plot
-    bound_plot_diffs_exceedance = pn.bind(
-        plot_time_exceedance,
-        scenario_list=scen_selector,
-        var_list=var_selector,
-        unit_choice=unit_selector,
-        df_all=df_diffs,
-        c_default_units=c_default_units,
-        period_choice=period_selector,
-        s_comparison=s_comparison,
-        c_field_list=c_field_list,
-        li_wyt_selected=wyt_selector,
-        b_wyt_period_year=wyt_period_selector_year,
-        li_wyt_period_months=wyt_period_selector,
-        b_show_year=exceedance_show_year_check_diffs,
-        s_module = s_module
-    )
+    #
+    # # Exceedance plot todo fix
+    # bound_plot_exceedance = pn.bind(
+    #     plot_time_exceedance,
+    #     scenario_list=scen_selector,
+    #     var_list=var_selector_exceedance,
+    #     unit_choice=unit_selector,
+    #     df_all=df_all_data_combined,
+    #     c_default_units=c_default_units_all,
+    #     period_choice=period_selector,
+    #     s_comparison=s_comparison,
+    #     c_field_list=c_field_list_all,
+    #     li_wyt_selected=wyt_selector,
+    #     b_wyt_period_year=wyt_period_selector_year,
+    #     li_wyt_period_months=wyt_period_selector,
+    #     b_show_year=exceedance_show_year_check,
+    #     s_module = s_module
+    # )
+    #
+    # # Exceedance differences plot
+    # bound_plot_diffs_exceedance = pn.bind(
+    #     plot_time_exceedance,
+    #     scenario_list=scen_selector,
+    #     var_list=var_selector_exceedance,
+    #     unit_choice=unit_selector,
+    #     df_all=df_diffs_combined,
+    #     c_default_units=c_default_units_all,
+    #     period_choice=period_selector,
+    #     s_comparison=s_comparison,
+    #     c_field_list=c_field_list_all,
+    #     li_wyt_selected=wyt_selector,
+    #     b_wyt_period_year=wyt_period_selector_year,
+    #     li_wyt_period_months=wyt_period_selector,
+    #     b_show_year=exceedance_show_year_check_diffs,
+    #     s_module = s_module
+    #)
 
     # Bar plot
     bound_single_var_plot = pn.bind(
         plot_bars,
-        df_all=df_all_data,
+        df_all=df_all_data_combined,
         period_choice=period_selector,
-        var_list=var_selector,
+        var_list=var_selector_bar,
         scenario_list=scen_selector,
         unit_choice=unit_selector,
         stat_choice=bar_stat_sel,
-        c_default_units=c_default_units,
+        c_default_units=c_default_units_all,
         s_comparison=s_comparison,
-        c_field_list=c_field_list,
+        c_field_list=c_field_list_all,
         li_wyt_selected=wyt_selector,
         b_wyt_period_year=wyt_period_selector_year,
         li_wyt_period_months=wyt_period_selector
@@ -805,15 +931,15 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     # Difference bar plot
     bound_single_var_diff_plot = pn.bind(
         plot_bars,
-        df_all=df_diffs,
+        df_all=df_diffs_combined,
         period_choice=period_selector,
-        var_list=var_selector,
+        var_list=var_selector_bar,
         scenario_list=scen_selector,
         unit_choice=unit_selector,
         stat_choice=bar_stat_sel,
-        c_default_units=c_default_units,
+        c_default_units=c_default_units_all,
         s_comparison=s_comparison,
-        c_field_list=c_field_list,
+        c_field_list=c_field_list_all,
         li_wyt_selected=wyt_selector,
         b_wyt_period_year=wyt_period_selector_year,
         li_wyt_period_months=wyt_period_selector
@@ -822,14 +948,14 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     # Monthly pattern plot
     bound_monthly_plot = pn.bind(
         monthly_pattern,
-        df_all=df_all_data,
-        var_list=var_selector,
+        df_all=df_all_data_combined,
+        var_list=var_selector_monthly,
         scenario_list=scen_selector,
         unit_choice=unit_selector,
         stat_choice=monthly_stat_sel,
-        c_default_units=c_default_units,
+        c_default_units=c_default_units_all,
         s_comparison=s_comparison,
-        c_field_list=c_field_list,
+        c_field_list=c_field_list_all,
         period_choice=period_selector,
         li_wyt_selected=wyt_selector
     )
@@ -837,41 +963,43 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     # Monthly pattern differences plot
     bound_monthly_diffs_plot = pn.bind(
         monthly_pattern,
-        df_all=df_diffs,
-        var_list=var_selector,
+        df_all=df_diffs_combined,
+        var_list=var_selector_monthly,
         scenario_list=scen_selector,
         unit_choice=unit_selector,
         stat_choice=monthly_stat_sel,
-        c_default_units=c_default_units,
+        c_default_units=c_default_units_all,
         s_comparison=s_comparison,
-        c_field_list=c_field_list,
+        c_field_list=c_field_list_all,
         period_choice=period_selector,
         li_wyt_selected=wyt_selector
     )
-
-    if s_module=='temperature':
-        o_year_selector = pn.widgets.IntInput(name='Year', value=1923, step=1, start=1922, end=2021, width=100)
-        o_reservoir_toggle = pn.widgets.RadioButtonGroup(
-            name='Units selector',
-            options=['Shasta', 'Folsom'],
-            button_style='outline',
-            button_type='primary',
-            width=200,
-            margin=32
-        )
-        # add in other plots
-        bound_one_year_plots = pn.bind(
-            plot_single_year,
-            scenario_list=scen_selector,
-            df_all=df_all_data,
-            c_field_list=c_field_list,
-            s_reservoir=o_reservoir_toggle,
-            i_year=o_year_selector
-        )
+    #
+    # #todo add temp to metadata and branch based on that here
+    # if s_module=='temperature':
+    #     o_year_selector = pn.widgets.IntInput(name='Year', value=1923, step=1, start=1922, end=2021, width=100)
+    #     o_reservoir_toggle = pn.widgets.RadioButtonGroup(
+    #         name='Units selector',
+    #         options=['Shasta', 'Folsom'],
+    #         button_style='outline',
+    #         button_type='primary',
+    #         width=200,
+    #         margin=32
+    #     )
+    #     # add in other plots
+    #     bound_one_year_plots = pn.bind(
+    #         plot_single_year,
+    #         scenario_list=scen_selector,
+    #         df_all=df_all_data_combined,
+    #         c_field_list=c_field_list_all,
+    #         s_reservoir=o_reservoir_toggle,
+    #         i_year=o_year_selector
+    #     )
 
 
     # TODO make sure this works - maybe move to own function
-    if s_module=='hydro_out':  # only create spatial plot if shapefile is present for hydro
+    b_have_spatial = len(spatial_fields) > 0
+    if b_have_spatial:  # only create spatial plot if shapefile is present for hydro
         #get variables from field list
 
         #special case for DP
@@ -881,14 +1009,14 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
                 return f'DP_{suffix}'  # -> 'DP_EXT' or 'DP_INT'
             return field.split('_')[0]
 
-        ls_spatial_prefixes = sorted(set(get_spatial_prefix(field) for field in c_field_list.keys()))
+        ls_spatial_prefixes = sorted(set(get_spatial_prefix(field) for field in spatial_fields))
         spatial_var_sel = pn.widgets.Select(
             name='Spatial Variable Selector',
             options=ls_spatial_prefixes,
             width=400
         )
 
-        # Import the Shapefiles based on variable
+        # Import the Shapefiles based on variable todo change so based off metadata
         c_gdf_by_prefix = {}
         for var in ls_spatial_prefixes:
             if var == "DP" or var == "SR":
@@ -913,10 +1041,10 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
             bound_plot_spatial = pn.bind(
                 plot_spatial,
                 scenario_list=scen_selector,
-                var_list=var_selector,
+                var_list=var_selector_spatial,
                 unit_choice=unit_selector,
-                df_all=df_all_data,
-                c_default_units_all=c_default_units,
+                df_all=df_all_data_combined,
+                c_default_units_all=c_default_units_all,
                 period_choice=period_selector,
                 s_comparison=s_comparison,
                 spatial_var_choice=spatial_var_sel,
@@ -926,17 +1054,17 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
             bound_plot_spatial_diff = pn.bind(
                 plot_spatial,
                 scenario_list=scen_selector,
-                var_list=var_selector,
+                var_list=var_selector_spatial,
                 unit_choice=unit_selector,
-                df_all=df_diffs,
-                c_default_units_all=c_default_units,
+                df_all=df_diffs_combined,
+                c_default_units_all=c_default_units_all,
                 period_choice=period_selector,
                 s_comparison=s_comparison,
                 spatial_var_choice=spatial_var_sel,
                 c_gdf=c_gdf_by_prefix
             )
 
-       # Titles for each plot, same order as the plots
+    # Titles for each plot, same order as the plots
     ts_title = pn.pane.Markdown("# Timeseries Plot"
                                 )
 
@@ -985,7 +1113,7 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
                                   s_stat=monthly_stat_sel)
 
 
-    if s_module=='hydro_out' and b_have_shapefile: # only create spatial plot for hydro
+    if b_have_spatial and b_have_shapefile: # only create spatial plot for hydro
         spatial_title = pn.bind(create_plot_title,
                                 s_title="Spatial Plot",
                                 s_comparison='',
@@ -999,16 +1127,6 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
                                 s_stat = spatial_var_sel)
 
 
-        # Create the different tables of metadata
-    o_metadata = create_metadata(scenario_names, c_field_list, c_default_units, s_module)
-
-    # Add widgets to header row in template and refresh objects
-    header.append(scen_selector)
-    header.append(var_selector)
-    header.append(pn.Column(period_selector, pn.Column(wyt_selector, pn.Row(wyt_period_selector_year, wyt_period_selector), visible=False), max_width=300))
-    header.append(unit_selector)
-    header.param.trigger("objects")
-
     # Lay out the plots and titles
     # These will hold the plots
     single_var_plots = pn.Column()
@@ -1017,71 +1135,55 @@ def create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_
     exceedance_plots = pn.Row()
     monthly_plots = pn.Column()
 
-    if s_module=='hydro_out':
+    if b_have_spatial:
         spatial_plots = pn.Column()
 
-    if s_module=='temperature':
-        one_year_plots = pn.Column()
+    # if s_module=='temperature': #todo change
+    #     one_year_plots = pn.Column()
 
     # Add everything into these containers
-    single_var_widgets = pn.Row(bar_stat_sel)
+    single_var_widgets = pn.Row(bar_stat_sel, var_selector_bar)
 
     single_var_plots.append(single_var_widgets)
     single_var_plots.append(pn.Row(pn.Column(single_var_title,bound_single_var_plot),pn.Column(single_var_diff_title,bound_single_var_diff_plot)))
 
-    timeseries_plots.append(pn.Column(ts_title,bound_plot_ts))
+    timeseries_plots.append(pn.Column(ts_title,var_selector_ts, bound_plot_ts))
     timeseries_plots.append(pn.Column(diffs_ts_title,bound_plot_diffs_ts))
 
-    grouped_plots.append(pn.Column(grouped_title,bound_plot_grouped))
+    grouped_plots.append(pn.Column(grouped_title,var_selector_grouped, bound_plot_grouped))
     grouped_plots.append(pn.Column(grouped__diff_title,bound_plot_grouped_diff))
-
-    exceedance_plots.append(pn.Column(exceedance_title, bound_plot_exceedance, exceedance_show_year_check))
-    exceedance_plots.append(pn.Column(exceedance_diff_title, bound_plot_diffs_exceedance, exceedance_show_year_check_diffs))
+    #
+    # exceedance_plots.append(pn.Column(exceedance_title, var_selector_exceedance, bound_plot_exceedance, exceedance_show_year_check))
+    # exceedance_plots.append(pn.Column(exceedance_diff_title, bound_plot_diffs_exceedance, exceedance_show_year_check_diffs))
 
     monthly_plots.append(pn.Row(monthly_stat_sel))
-    monthly_plots.append(pn.Row(pn.Column(monthly_title, bound_monthly_plot), pn.Column(monthly_diffs_title, bound_monthly_diffs_plot)))
+    monthly_plots.append(pn.Row(pn.Column(monthly_title, var_selector_monthly, bound_monthly_plot), pn.Column(monthly_diffs_title, bound_monthly_diffs_plot)))
 
-    if s_module=='temperature':
-        one_year_plots.append(pn.Row(o_year_selector, o_reservoir_toggle))
-        one_year_plots.append(bound_one_year_plots)
+    # if s_module=='temperature':
+    #     one_year_plots.append(pn.Row(o_year_selector, o_reservoir_toggle))
+    #     one_year_plots.append(bound_one_year_plots)
 
 
-    if s_module=='hydro_out' and b_have_shapefile:  # only create spatial plot for hydro if shapefile present
-        spatial_plots.append(pn.Row(spatial_var_sel))
+    if b_have_spatial and b_have_shapefile:  # only create spatial plot for hydro if shapefile present
+        spatial_plots.append(pn.Row(spatial_var_sel, var_selector_spatial))
         spatial_plots.append(pn.Row(pn.Column(spatial_title, bound_plot_spatial),
                                     pn.Column(spatial__diff_title, bound_plot_spatial_diff)))
 
     # create the tabs with each page of plots
-    if s_module=='calsim' or s_module=='salinity':
-        tabs = pn.Tabs(
-            ('Bar Plot', single_var_plots),
-            ('Timeseries', timeseries_plots),
-            ('Time-Aggregated', grouped_plots),
-            ('Exceedance', exceedance_plots),
-            ('Monthly Pattern', monthly_plots),
-            ('Metadata', o_metadata)
-        )
-    elif s_module=='temperature':
-        tabs = pn.Tabs(
-            ('Single Year Plots', one_year_plots),
-            ('Bar Plot', single_var_plots),
-            ('Timeseries', timeseries_plots),
-            ('Time-Aggregated', grouped_plots),
-            ('Exceedance', exceedance_plots),
-            ('Monthly Pattern', monthly_plots),
-            ('Metadata', o_metadata)
-        )
+    ls_tabs = [
+        ('Bar Plot', single_var_plots),
+        ('Timeseries', timeseries_plots),
+        ('Time-Aggregated', grouped_plots),
+        ('Exceedance', exceedance_plots),
+        ('Monthly Pattern', monthly_plots),
+    ]
 
-    elif s_module=='hydro_out':
-        tabs = pn.Tabs(
-            ('Bar Plot', single_var_plots),
-            ('Timeseries', timeseries_plots),
-            ('Time-Aggregated', grouped_plots),
-            ('Exceedance', exceedance_plots),
-            ('Monthly Pattern', monthly_plots),
-            ('Spatial', spatial_plots),
-            ('Metadata', o_metadata)
-        )
+    if b_have_spatial and b_have_shapefile:
+        ls_tabs.append(('Spatial', spatial_plots))
+
+    ls_tabs.append(('Metadata', pn.Column(*ls_metadata_panels)))
+
+    tabs = pn.Tabs(*ls_tabs)
 
     # append the tabs to the row
     tabs_row.append(tabs)
@@ -1191,8 +1293,8 @@ def add_run_names_widget(event, s_module, file_picker_col_tracker, run_name_col_
                 field_col_tracker.append("error_message")
                 return None
             # no need for fields section, just start pulling the files
-            update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column, run_name_col_tracker, field_column, field_col_tracker, file_picker_display, header, tabs_row, s_module)
-            return None
+            result = update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column, run_name_col_tracker, field_column, field_col_tracker, file_picker_display, header, tabs_row, s_module)
+            return result
         # add option to override TR_fields.txt
         override_TR_fields_instructions = pn.pane.Markdown("""
         # OPTIONAL override default fields:""", renderer='markdown')
@@ -1340,7 +1442,21 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
 
     Returns
     -------
-        none
+    df_all_data: DataFrame
+        DataFrame with all of the data that can be plotted for this module
+    df_diffs: DataFrame
+        Dataframe of difference from comparison scenario data for this module
+    c_default_units: dict
+        Dictionary of default units for all fields in this module
+    c_field_list: dict
+        Dictionary of field name and descriptions for this module
+    s_comparison: str
+        Name of comparison scenario for this module
+    scenario_names: list
+        List of scenario names loaded for this module
+    s_module: str
+        Which module this data belongs to (passed through unchanged, for use by the caller
+        when combining results across modules)
     """
 
     # Get selected files
@@ -1624,8 +1740,4 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
     field_col_tracker.pop(loading_index)
     field_column.param.trigger("objects")
 
-    #Fill in widgets for other tabs
-    create_plots(scenario_names, c_field_list, df_all_data, c_default_units, df_diffs, s_comparison, header, tabs_row, s_module)
-    # once we have the widgets and graphs, remove the file picker
-    for _ in range(len(file_picker_display)):
-        file_picker_display.pop(0)
+    return df_all_data, df_diffs, c_default_units, c_field_list, s_comparison, scenario_names, s_module
