@@ -811,8 +811,8 @@ def create_plots(event, module_results, module_column, header, tabs_row):
             name=name,
             options=options,
             value=[list(options.values())[0]] if options else [],
-            option_limit=len(options),
-            search_option_limit=len(options),
+            option_limit=len(options) if options else 1,
+            search_option_limit=len(options) if options else 1,
             width=400
         )
 
