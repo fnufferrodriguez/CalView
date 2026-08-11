@@ -694,7 +694,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
     """
 
     #key for temp version
-    b_not_temperature = 'temperaturn' not in s_module
+    b_not_temperature = 'temperature' not in s_module
 
     # if the data frame is empty, return a markdown frame. This will happen if only one scenario is selected and its the comparison one. the differences will be empty
     if df_all.empty:

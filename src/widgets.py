@@ -113,7 +113,7 @@ def build_naming_stage(event, c_module_containers, c_flag, module_column, c_modu
             if result is not None:
                 module_results.append(result)
         create_plots(event, module_results=module_results, module_column=module_column,
-                     header=header, tabs_row=tabs_row)
+                     header=header, tabs_row=tabs_row, c_modules=c_modules)
         return
 
     ls_update_run_names_kwargs = []
@@ -203,7 +203,7 @@ def build_naming_stage(event, c_module_containers, c_flag, module_column, c_modu
                 if result is not None:
                     module_results.append(result)
             create_plots(event, module_results=module_results, module_column=module_column,
-                         header=header, tabs_row=tabs_row)
+                         header=header, tabs_row=tabs_row, c_modules=c_modules)
 
         done_naming = pn.widgets.Button(name="Continue", width=500, button_type='primary')
         done_naming.on_click(partial(on_continue, ls_kwargs=ls_update_run_names_kwargs))
@@ -711,7 +711,7 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
     return o_metadata, df_field_names
 
 
-def create_plots(event, module_results, module_column, header, tabs_row):
+def create_plots(event, module_results, module_column, header, tabs_row, c_modules=None):
     """
     Combines each active module's loaded data into shared structures, builds each
     module's metadata panel, clears the naming stage, and builds the shared plotting
@@ -802,6 +802,76 @@ def create_plots(event, module_results, module_column, header, tabs_row):
     header.append(unit_selector)
     header.param.trigger("objects")
 
+    # Build one exceedance section per module since exceedance plots are module specific
+    exceedance_sections = []
+    for df_all_data, df_diffs, c_default_units, c_field_list, s_mod_comparison, scenario_names, s_module in module_results:
+        mod_description_to_field = {desc: field for field, desc in c_field_list.items()}
+        mod_var_selector_exceedance = pn.widgets.MultiChoice(
+            name='Variable Selector',
+            options=mod_description_to_field,
+            value=[list(mod_description_to_field.values())[0]] if mod_description_to_field else [],
+            option_limit=len(mod_description_to_field) if mod_description_to_field else 1,
+            search_option_limit=len(mod_description_to_field) if mod_description_to_field else 1,
+            width=400
+        )
+
+        mod_exceedance_show_year_check = pn.widgets.Checkbox(name='Show year in table')
+        mod_exceedance_show_year_check_diffs = pn.widgets.Checkbox(name='Show year in table')
+
+        mod_bound_plot_exceedance = pn.bind(
+            plot_time_exceedance,
+            scenario_list=scen_selector,
+            var_list=mod_var_selector_exceedance,
+            unit_choice=unit_selector,
+            df_all=df_all_data_combined,
+            c_default_units=c_default_units_all,
+            period_choice=period_selector,
+            s_comparison=s_comparison,
+            c_field_list=c_field_list_all,
+            li_wyt_selected=wyt_selector,
+            b_wyt_period_year=wyt_period_selector_year,
+            li_wyt_period_months=wyt_period_selector,
+            b_show_year=mod_exceedance_show_year_check,
+            s_module=s_module
+        )
+
+        mod_bound_plot_diffs_exceedance = pn.bind(
+            plot_time_exceedance,
+            scenario_list=scen_selector,
+            var_list=mod_var_selector_exceedance,
+            unit_choice=unit_selector,
+            df_all=df_diffs_combined,
+            c_default_units=c_default_units_all,
+            period_choice=period_selector,
+            s_comparison=s_comparison,
+            c_field_list=c_field_list_all,
+            li_wyt_selected=wyt_selector,
+            b_wyt_period_year=wyt_period_selector_year,
+            li_wyt_period_months=wyt_period_selector,
+            b_show_year=mod_exceedance_show_year_check_diffs,
+            s_module=s_module
+        )
+
+        mod_exceedance_title = pn.bind(create_plot_title,
+                                       s_title=c_modules.get(s_module, s_module) + " Exceedance Plot",
+                                       s_comparison='',
+                                       s_period=period_selector)
+
+        mod_exceedance_diff_title = pn.bind(create_plot_title,
+                                            s_title=c_modules.get(s_module, s_module) + " Exceedance Plot",
+                                            s_comparison=s_comparison,
+                                            s_period=period_selector)
+
+        exceedance_sections.append(pn.Column(
+            pn.pane.Markdown(f"## {c_modules.get(s_module, s_module)}"),
+            pn.Row(
+                pn.Column(mod_exceedance_title, mod_var_selector_exceedance, mod_bound_plot_exceedance,
+                          mod_exceedance_show_year_check),
+                pn.Column(mod_exceedance_diff_title, mod_bound_plot_diffs_exceedance,
+                          mod_exceedance_show_year_check_diffs)
+            )
+        ))
+
     #per tab variable selectors, each filtered by combined field metadata
     c_description_to_field_all = {desc: field for field, desc in c_field_list_all.items()}
 
@@ -825,7 +895,6 @@ def create_plots(event, module_results, module_column, header, tabs_row):
     var_selector_bar = make_var_selector('Variable Selector', all_fields)
     var_selector_ts = make_var_selector('Variable Selector', all_fields)
     var_selector_grouped = make_var_selector('Variable Selector', all_fields)
-    var_selector_exceedance = make_var_selector('Variable Selector', all_fields)
     var_selector_monthly = make_var_selector('Variable Selector', all_fields)
     var_selector_spatial = make_var_selector('Variable Selector', spatial_fields)
 
@@ -1094,16 +1163,6 @@ def create_plots(event, module_results, module_column, header, tabs_row):
                                   s_comparison=s_comparison,
                                   s_period=period_selector)
 
-    exceedance_title = pn.bind(create_plot_title,
-                               s_title="Exceedance Plot",
-                               s_comparison='',
-                               s_period=period_selector)
-
-    exceedance_diff_title = pn.bind(create_plot_title,
-                                    s_title="Exceedance Plot",
-                                    s_comparison=s_comparison,
-                                    s_period=period_selector)
-
     single_var_title = pn.bind(create_plot_title,
                                s_title="Bar Plot",
                                s_comparison='',
@@ -1145,7 +1204,7 @@ def create_plots(event, module_results, module_column, header, tabs_row):
     single_var_plots = pn.Column()
     timeseries_plots = pn.Row()
     grouped_plots = pn.Row()
-    exceedance_plots = pn.Row()
+    exceedance_plots = pn.Column()
     monthly_plots = pn.Column()
 
     if b_have_spatial:
@@ -1165,9 +1224,9 @@ def create_plots(event, module_results, module_column, header, tabs_row):
 
     grouped_plots.append(pn.Column(grouped_title,var_selector_grouped, bound_plot_grouped))
     grouped_plots.append(pn.Column(grouped__diff_title,bound_plot_grouped_diff))
-    #
-    # exceedance_plots.append(pn.Column(exceedance_title, var_selector_exceedance, bound_plot_exceedance, exceedance_show_year_check))
-    # exceedance_plots.append(pn.Column(exceedance_diff_title, bound_plot_diffs_exceedance, exceedance_show_year_check_diffs))
+
+    for section in exceedance_sections:
+        exceedance_plots.append(section)
 
     monthly_plots.append(pn.Row(monthly_stat_sel))
     monthly_plots.append(pn.Row(pn.Column(monthly_title, var_selector_monthly, bound_monthly_plot), pn.Column(monthly_diffs_title, bound_monthly_diffs_plot)))
