@@ -1111,7 +1111,6 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             b_have_shapefile = path.exists(s_shapefile_path)
             if b_have_shapefile:
                 gdf = gpd.read_file(s_shapefile_path)
-                print("Shapefile columns:", gdf.columns.tolist())
                 gdf = gdf[[id_col, 'geometry']]
                 gdf = gdf.to_crs(4326)  # HVplot requires lat/lon to plot with 'geo=True'
                 c_gdf_by_prefix[var] = gdf

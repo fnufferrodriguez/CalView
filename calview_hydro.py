@@ -16,15 +16,43 @@ hv.opts.defaults(hv.opts.Scatter(color=hv.Cycle(['#003E51', '#007396', '#C69214'
 # Visualizer formatting code
 
 # Flag for hydro version
-c_flag = {'calsim':False, #todo change back to hydro_in
+c_flag = {'calsim':False,
           'hydro_out':True,
-          'temperature':False}
+          'temperature':False,
+          'salinity':False}
 c_modules = {
     'calsim':"CalSim Outputs",
     'hydro_out':"CalSim Hydro Outputs",
     'temperature': "Temperature"
 }
+c_module_file_instructions = {
+    'temperature': {
+        'title': 'New Temperature File Selection Instructions',
+        'structure_text': """NAA/\n├─── CS3_NAA_SV.dss\n├─── CS3_NAA_DV_dp.dss\n\
+├─── american/\n│    ├─── CALSIMII_HEC5Q.dss\n│    └─── AR_WQ_Report.dss\n\
+└─── sacramento/\n     ├─── CALSIMII_HEC5Q.dss\n     └─── SR_WQ_Report.dss\n\
+Alt2v1/\n├─── CS3_Alt2v1_SV.dss\n├─── CS3_Alt2v1_DV_dp.dss\n\
+├─── american/\n│    ├─── CALSIMII_HEC5Q.dss\n│    └─── AR_WQ_Report.dss\n\
+└─── sacramento/\n     ├─── CALSIMII_HEC5Q.dss\n     └─── SR_WQ_Report.dss""",
+        'intro_markdown': "## Required file structure: ",
+        'details_markdown': """## Select the base folders. 
+## For this example, select the *NAA* and *Alt2v1* folders.
 
+CalSim DSS files can be named anything as long as one has 'SV' and one has 'DV' in the name.
+
+There must be folders named *american* and *sacramento* with the exact files shown."""
+    },
+    'salinity': {
+        'title': 'New Salinity File Selection Instructions',
+        'structure_text': """NAA/\n├─── CS3_NAA_EC_p.dss\n└─── CS3_NAA_FLOW_p.dss\n\
+Alt2v1/\n├─── CS3_Alt2v1_EC_p.dss\n└─── CS3_Alt2v1_FLOW_p.dss\n\
+""",
+        'intro_markdown': "## Required file structure: ",
+        'details_markdown': """## Select the base folders. 
+## For this example, select the *NAA* and *Alt2v1* folders.
+"""
+    }
+}
 # path for the compiled executable to find logo
 s_logo_path = path.abspath(path.join(path.dirname(__file__), 'inputs', 'usbr_logo.jpg'))
 
@@ -97,6 +125,27 @@ def build_module_widgets(s_module):
                 file_picker_col_tracker=file_picker_col_tracker), ['value'], onlychanged=False)
     old_new_sel.value = "New outputs"
     c_old_new_watcher.append(choice_watcher)
+
+    # per-module file selection instructions
+    if s_module in c_module_file_instructions:
+        instr = c_module_file_instructions[s_module]
+        file_instructions_title = pn.pane.Markdown(instr['intro_markdown'], disable_anchors=True)
+        file_structure = pn.pane.Str(instr['structure_text'])
+        file_instructions_details = pn.pane.Markdown(instr['details_markdown'], disable_anchors=True)
+
+        o_instructions_card = pn.Card(
+            file_instructions_title,
+            file_structure,
+            file_instructions_details,
+            title=instr['title'],
+            collapsed=True,
+            margin=10,
+            header_background='#003E51',
+            header_color='white',
+        )
+
+        file_picker_column.append(o_instructions_card)
+        file_picker_col_tracker.append('instructions_card')
 
     c_module_containers[s_module] = {
         'header': header,
