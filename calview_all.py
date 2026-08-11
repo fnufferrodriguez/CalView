@@ -57,7 +57,7 @@ Alt2v1/\n├─── CS3_Alt2v1_EC_p.dss\n└─── CS3_Alt2v1_FLOW_p.dss\n\
 s_logo_path = path.abspath(path.join(path.dirname(__file__), 'inputs', 'usbr_logo.jpg'))
 
 template = pn.template.BootstrapTemplate(
-    title="CalView Hydro",
+    title="CalView All",
     logo=s_logo_path,
     favicon=s_logo_path,
     header_background='white',
