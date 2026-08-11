@@ -134,8 +134,13 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
 
     for scenario in scenario_list:
         df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][var_list_final]
+        #skip vars this scenarios module doesnt produce
+        valid_vars = [v for v in var_list_final if not df_temp[v].isna().all()]
+        if not valid_vars:
+            continue
+        df_temp = df_temp[valid_vars]
         df_temp.reset_index(inplace=True, drop=True)
-        col_names = [f'{scenario}: {var}' for var in var_list_final]
+        col_names = [f'{scenario}: {var}' for var in valid_vars]
         df_temp.columns = col_names
         df_wide[col_names] = df_temp[col_names]
         for name in col_names:
@@ -416,8 +421,13 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
     for scenario in scenario_list:
         df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][var_list_final]
+        # skip vars this scenario's module doesn't produce (all-NaN for this scenario)
+        valid_vars = [v for v in var_list_final if not df_temp[v].isna().all()]
+        if not valid_vars:
+            continue
+        df_temp = df_temp[valid_vars]
         df_temp.reset_index(inplace=True, drop=True)
-        col_names = [f'{scenario}: {var}' for var in var_list_final]
+        col_names = [f'{scenario}: {var}' for var in valid_vars]
         df_temp.columns = col_names
         df_wide[col_names] = df_temp[col_names]       # WHAT THE HECK
         for name in col_names:
@@ -819,8 +829,12 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
     for scenario in scenario_list:
         df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][var_list_final]
+        valid_vars = [v for v in var_list_final if not df_temp[v].isna().all()]
+        if not valid_vars:
+            continue
+        df_temp = df_temp[valid_vars]
         df_temp.reset_index(inplace=True, drop=True)
-        col_names = [f'{scenario}: {var}' for var in var_list_final]
+        col_names = [f'{scenario}: {var}' for var in valid_vars]
         df_temp.columns = col_names
         df_wide[col_names] = df_temp[col_names]       # WHAT THE HECK
         for name in col_names:
@@ -1311,6 +1325,9 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     for var in var_list_final:
         for index, scenario in enumerate(scenario_list):
             df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[var]]
+            # skip if this scenario's module doesn't produce this var (all-NaN)
+            if df_temp[var].isna().all():
+                continue
             df_temp.reset_index(inplace=True, drop=True)
             col_names = [f'{scenario}: {var}']
             df_temp.columns = col_names
@@ -1419,8 +1436,10 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         for i_wyt in li_wyt_selected:
             for s_scen in scenario_list:
                 s_scen_wyt_col = f'{s_scen}: {s_wyt_col}'
-                df_temp = df_plot[df_plot[s_scen_wyt_col] == i_wyt]
                 col_names = [f'{s_scen}: {var_list_final[0]}']
+                if col_names[0] not in df_plot.columns:
+                    continue
+                df_temp = df_plot[df_plot[s_scen_wyt_col] == i_wyt]
                 if stat_choice == 'Average':
                     df_temp = df_temp[col_names].mean()
                 elif stat_choice == 'Minimum':
@@ -1454,8 +1473,10 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                 df_final.loc[(i_wyt, s_scen), var_list_final[0]] = df_temp.values
         for s_scen in scenario_list:
             s_scen_wyt_col = f'{s_scen}: {s_wyt_col}'
-            df_temp = df_plot[df_plot[s_scen_wyt_col].isin(li_wyt_selected)]
             col_names = [f'{s_scen}: {var_list_final[0]}']
+            if col_names[0] not in df_plot.columns:
+                continue
+            df_temp = df_plot[df_plot[s_scen_wyt_col] == i_wyt]
             if stat_choice == 'Average':
                 df_temp = df_temp[col_names].mean()
             elif stat_choice == 'Minimum':
@@ -1905,8 +1926,13 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
 
     for scenario in scenario_list:
         df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][var_list_final]
+        # skip vars this scenario's module doesn't produce (all-NaN for this scenario)
+        valid_vars = [v for v in var_list_final if not df_temp[v].isna().all()]
+        if not valid_vars:
+            continue
+        df_temp = df_temp[valid_vars]
         df_temp.reset_index(inplace=True, drop=True)
-        col_names = [f'{scenario}: {var}' for var in var_list_final]
+        col_names = [f'{scenario}: {var}' for var in valid_vars]
         df_temp.columns = col_names
         df_wide[col_names] = df_temp[col_names]
         for name in col_names:
