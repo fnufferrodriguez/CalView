@@ -16,7 +16,10 @@ hv.opts.defaults(hv.opts.Scatter(color=hv.Cycle(['#003E51', '#007396', '#C69214'
 # Visualizer formatting code
 
 # Flag for temperature version
-s_flag = 'calsim'
+c_flag = {'calsim':True}
+
+#hard coded module
+s_module = 'calsim'
 
 # path for the compiled executable to find logo
 s_logo_path = path.abspath(path.join(path.dirname(__file__), 'inputs', 'usbr_logo.jpg'))
@@ -60,10 +63,10 @@ file_picker_title_tooltip = pn.widgets.TooltipIcon(value='Once a set of DSS file
 #Create radio button widget to select running with old or new scenario
 old_new_sel = pn.widgets.RadioButtonGroup(
     #name='',
-    value="New CalSim outputs",
+    value="New outputs",
     button_style='outline',
     button_type='primary',
-    options=["New CalSim outputs", "Previously generated visuals"],
+    options=["New outputs", "Previously generated visuals"],
     max_width=1000
 )
 
@@ -78,8 +81,8 @@ file_picker_column.append(None)
 file_picker_col_tracker.append("dss_file")
 
 #Watch the old_new_sel widget and call remove_widget function to update dss_file if a change event occurs
-choice_watcher = old_new_sel.param.watch(partial(update_dss_file_widget, file_picker_column=file_picker_column, file_picker_col_tracker=file_picker_col_tracker), ['value'], onlychanged=False)
-old_new_sel.value = "New CalSim outputs"
+choice_watcher = old_new_sel.param.watch(partial(update_dss_file_widget, s_module=s_module, file_picker_column=file_picker_column, file_picker_col_tracker=file_picker_col_tracker), ['value'], onlychanged=False)
+old_new_sel.value = "New outputs"
 # name of the scenario that will be compared to, Baseline as a default
 
 #Add Done Selecting Files button
@@ -93,8 +96,8 @@ file_picker_display = pn.Row(file_picker_column, pn.Column(run_name_column, fiel
 
 template.main.append(file_picker_display)
 #When done selecting file button is clicked, add text boxes for user to name each file's run
-done_selecting.on_click(partial(add_run_names_widget, file_picker_col_tracker=file_picker_col_tracker, run_name_col_tracker=run_name_col_tracker, field_col_tracker=field_col_tracker,
-                                file_picker_display=file_picker_display, header=header, tabs_row=tabs_row, s_flag=s_flag))
+done_selecting.on_click(partial(add_run_names_widget, s_module = s_module, file_picker_col_tracker=file_picker_col_tracker, run_name_col_tracker=run_name_col_tracker, field_col_tracker=field_col_tracker,
+                                file_picker_display=file_picker_display, header=header, tabs_row=tabs_row))
 
 # when this file is ran, the site will automatically launch
 pn.serve(template, show=True)

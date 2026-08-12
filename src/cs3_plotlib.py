@@ -134,8 +134,13 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
 
     for scenario in scenario_list:
         df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][var_list_final]
+        #skip vars this scenarios module doesnt produce
+        valid_vars = [v for v in var_list_final if not df_temp[v].isna().all()]
+        if not valid_vars:
+            continue
+        df_temp = df_temp[valid_vars]
         df_temp.reset_index(inplace=True, drop=True)
-        col_names = [f'{scenario}: {var}' for var in var_list_final]
+        col_names = [f'{scenario}: {var}' for var in valid_vars]
         df_temp.columns = col_names
         df_wide[col_names] = df_temp[col_names]
         for name in col_names:
@@ -416,8 +421,13 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
     for scenario in scenario_list:
         df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][var_list_final]
+        # skip vars this scenario's module doesn't produce (all-NaN for this scenario)
+        valid_vars = [v for v in var_list_final if not df_temp[v].isna().all()]
+        if not valid_vars:
+            continue
+        df_temp = df_temp[valid_vars]
         df_temp.reset_index(inplace=True, drop=True)
-        col_names = [f'{scenario}: {var}' for var in var_list_final]
+        col_names = [f'{scenario}: {var}' for var in valid_vars]
         df_temp.columns = col_names
         df_wide[col_names] = df_temp[col_names]       # WHAT THE HECK
         for name in col_names:
@@ -645,7 +655,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                          c_default_units, period_choice, s_comparison, c_field_list,
                          li_wyt_selected, b_wyt_period_year, li_wyt_period_months,
-                         b_show_year, s_flag):
+                         b_show_year, s_module):
     """
     Creates exceedance plots
 
@@ -675,13 +685,16 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         Months selected for WYT time period
     b_show_year: bool
         Whether to show the year in the table
-    s_flag: str
-        Flag for version of visualizer
+    s_module: str
+        Module from c_flag
     Returns
     -------
     Panel Object
             Plot and table of data as a column
     """
+
+    #key for temp version
+    b_not_temperature = 'temperature' not in s_module
 
     # if the data frame is empty, return a markdown frame. This will happen if only one scenario is selected and its the comparison one. the differences will be empty
     if df_all.empty:
@@ -816,8 +829,12 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
     for scenario in scenario_list:
         df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][var_list_final]
+        valid_vars = [v for v in var_list_final if not df_temp[v].isna().all()]
+        if not valid_vars:
+            continue
+        df_temp = df_temp[valid_vars]
         df_temp.reset_index(inplace=True, drop=True)
-        col_names = [f'{scenario}: {var}' for var in var_list_final]
+        col_names = [f'{scenario}: {var}' for var in valid_vars]
         df_temp.columns = col_names
         df_wide[col_names] = df_temp[col_names]       # WHAT THE HECK
         for name in col_names:
@@ -867,7 +884,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True,
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -879,7 +896,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1001,7 +1018,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1013,7 +1030,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1058,7 +1075,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=c_num_to_month[period_choice] + ' ' + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1070,7 +1087,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=c_num_to_month[period_choice] + ' ' + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1122,7 +1139,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1134,7 +1151,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                 min_height=600,
                 ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
                 xlabel='Probability of Exceedance',
-                flip_xaxis=(s_flag != 'temperature'),
+                flip_xaxis=(b_not_temperature),
                 xformatter='%f%%',
                 grid=True
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
@@ -1308,6 +1325,9 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     for var in var_list_final:
         for index, scenario in enumerate(scenario_list):
             df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[var]]
+            # skip if this scenario's module doesn't produce this var (all-NaN)
+            if df_temp[var].isna().all():
+                continue
             df_temp.reset_index(inplace=True, drop=True)
             col_names = [f'{scenario}: {var}']
             df_temp.columns = col_names
@@ -1416,8 +1436,10 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         for i_wyt in li_wyt_selected:
             for s_scen in scenario_list:
                 s_scen_wyt_col = f'{s_scen}: {s_wyt_col}'
-                df_temp = df_plot[df_plot[s_scen_wyt_col] == i_wyt]
                 col_names = [f'{s_scen}: {var_list_final[0]}']
+                if col_names[0] not in df_plot.columns:
+                    continue
+                df_temp = df_plot[df_plot[s_scen_wyt_col] == i_wyt]
                 if stat_choice == 'Average':
                     df_temp = df_temp[col_names].mean()
                 elif stat_choice == 'Minimum':
@@ -1451,8 +1473,10 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                 df_final.loc[(i_wyt, s_scen), var_list_final[0]] = df_temp.values
         for s_scen in scenario_list:
             s_scen_wyt_col = f'{s_scen}: {s_wyt_col}'
-            df_temp = df_plot[df_plot[s_scen_wyt_col].isin(li_wyt_selected)]
             col_names = [f'{s_scen}: {var_list_final[0]}']
+            if col_names[0] not in df_plot.columns:
+                continue
+            df_temp = df_plot[df_plot[s_scen_wyt_col] == i_wyt]
             if stat_choice == 'Average':
                 df_temp = df_temp[col_names].mean()
             elif stat_choice == 'Minimum':
@@ -1902,8 +1926,13 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
 
     for scenario in scenario_list:
         df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][var_list_final]
+        # skip vars this scenario's module doesn't produce (all-NaN for this scenario)
+        valid_vars = [v for v in var_list_final if not df_temp[v].isna().all()]
+        if not valid_vars:
+            continue
+        df_temp = df_temp[valid_vars]
         df_temp.reset_index(inplace=True, drop=True)
-        col_names = [f'{scenario}: {var}' for var in var_list_final]
+        col_names = [f'{scenario}: {var}' for var in valid_vars]
         df_temp.columns = col_names
         df_wide[col_names] = df_temp[col_names]
         for name in col_names:
@@ -2079,3 +2108,106 @@ def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year):
         o_final_temp_plots.append(o_temp_plot)
 
     return pn.Column(o_final_plots, o_final_temp_plots,o_final_data)
+
+
+def get_spatial_group(field):
+    """
+    Returns the group a field belongs to for spatial plotting purposes.
+    Fields ending in _EXT or _INT get their own group (e.g. 'DP_EXT'),
+    all other fields group under their first prefix segment (e.g. 'AWO', 'DP').
+
+    Parameters
+    ----------
+    field: str
+        Field name
+
+    Returns
+    -------
+    str
+        Spatial group name
+    """
+    if field.endswith(('_EXT', '_INT')):
+        prefix = field.split('_')[0]
+        suffix = field.split('_')[-1]
+        return f'{prefix}_{suffix}'
+    return field.split('_')[0]
+
+def plot_spatial(scenario_list, var_list, unit_choice, df_all,
+                 c_default_units_all, period_choice, s_comparison, spatial_var_choice, c_gdf):
+    """
+    Creates spatial plot of annual average values by Water Balance Area
+
+    Parameters
+    ----------
+    scenario_list: list
+        Scenarios we want to plot (only the first is used)
+    var_list: list
+        Unused - kept for interface consistency with other plot functions
+    unit_choice: str
+        Unused - no CFS/TAF conversion is performed for spatial data
+    df_all: DataFrame
+        Data to be filtered and plotted
+    c_default_units_all: dict
+        Unused - kept for interface consistency
+    period_choice: object
+        Unused - spatial plot always aggregates by water year
+    s_comparison: str
+        Name of comparison scenario
+    spatial_var_choice: str
+        Substring identifying which variable group to plot (e.g. 'AL', 'CO', 'CR', 'CU')
+    c_gdf: dict
+       Dict mapping spatial prefix -> GeoDataFrame with 'ID' and 'geometry' columns
+
+    Returns
+    -------
+    Panel Object
+        Map and table of annual average data
+    """
+    #normalize suffix groups (e.g. 'DP_EXT') back to base group for shapefile lookup
+    strip_suffix = spatial_var_choice.endswith(('_EXT', '_INT'))
+    gdf_key = spatial_var_choice.rsplit('_', 1)[0] if strip_suffix else spatial_var_choice
+
+    # look up correct GeoDataFrame for the selected variable
+    gdf = c_gdf.get(gdf_key)
+    if gdf is None:
+        return pn.pane.Markdown(f"No shapefile available for '{spatial_var_choice}'")
+    gdf = gdf.copy()
+
+    #determine ID column name based on variable
+    id_col = [c for c in gdf.columns if c != 'geometry'][0]
+
+    all_var_list = [c for c in df_all if not c in ['Date', 'Scenario', 'Year', 'Month', 'JanDecYear', 'OctSeptYear', 'MarFebYear']]
+    matched_var_list = [v for v in all_var_list if get_spatial_group(v) == spatial_var_choice]
+
+    if not matched_var_list:
+        return pn.pane.Markdown(f"No matching data fields found for '{spatial_var_choice}'")
+
+    df_all_plot = df_all.copy(deep=True)
+    df_all_plot.reset_index(inplace=True, drop=True)
+
+    # check if comparison scen is in the data frame
+    # if it's not, then we are creating the differences plot and don't want to include comparison scen
+    if s_comparison not in df_all_plot.Scenario.unique():
+        scenario_list = [scen for scen in scenario_list if scen != s_comparison]
+
+    if len(scenario_list) == 0:
+        return
+
+    df_wide = df_all_plot[df_all_plot.Scenario == scenario_list[0]][['Date', 'OctSeptYear', 'Month'] + matched_var_list]
+    df_annAvgTS = df_wide.groupby(by=['OctSeptYear'])[matched_var_list].sum()
+    df_annAvg = pd.DataFrame(df_annAvgTS[matched_var_list].mean()).reset_index()
+    df_annAvg.columns = ['Variable', 'AnnualAverage']
+
+    df_annAvg[id_col] = ['_'.join(v.split("_")[1:]) for v in df_annAvg.Variable]
+    if strip_suffix:
+        df_annAvg[id_col] = df_annAvg[id_col].str.rsplit('_', n=1).str[0]
+
+    gdf = gdf.merge(df_annAvg, left_on=id_col, right_on=id_col, how='inner')
+    gdf_plot = gdf[['geometry', 'AnnualAverage']]
+    gdf_plot = gdf_plot.dropna(subset=['geometry'])
+
+    return pn.Column(
+        pn.pane.HoloViews(gdf_plot.hvplot(
+            c='AnnualAverage', geo=True, frame_height=800),
+                          center=True),
+        pn.pane.DataFrame(df_annAvg, max_height=700))
