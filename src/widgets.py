@@ -397,8 +397,8 @@ def update_dss_file_widget(event, s_module, file_picker_column, file_picker_col_
                 )
         # Pickle files
         else:
-            o_instructions = pn.pane.Markdown('### <span style="color:red">Select the pickle files previously created (diffs.pkl, units.pkl, values.pkl, and fields.pkl)</span>')
-            o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move the four pkl files from 'File Browser' section to 'Selected files' section then click 'Continue'")
+            o_instructions = pn.pane.Markdown('### <span style="color:red">Select the module pickle file previously created (module_&lt;name&gt;.pkl)</span>')
+            o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move the pkl file from 'File Browser' section to 'Selected files' section then click 'Continue'")
             dss_file = pn.widgets.FileSelector(
                 name='Select CalSim output DSS file for new run or pickle file for previous run',
                 file_pattern="*.pkl",
@@ -485,8 +485,8 @@ def create_widgets(scenario_names, c_field_list):
         name='Scenario Selector',
         options=scenario_names,
         value=scenario_names,
-        option_limit=len(scenario_names),
-        search_option_limit=len(scenario_names),
+        option_limit=len(scenario_names) + 10,
+        search_option_limit=len(scenario_names) + 10,
         width=400
     )
 
@@ -1307,26 +1307,12 @@ def add_run_names_widget(event, s_module, file_picker_col_tracker, run_name_col_
 
         #using picked files
         else:
-            # check to make sure all pickle files have been selected
-            b_diffs_flag = False
-            b_values_flag = False
-            b_units_flag = False
-            b_fields_flag = False
-            for file in files:
-                if 'diffs' in file:
-                    b_diffs_flag = True
-                if 'values' in file:
-                    b_values_flag = True
-                if 'units' in file:
-                    b_units_flag = True
-                if 'fields' in file:
-                    b_fields_flag = True
-            if not (b_units_flag and b_diffs_flag and b_values_flag and b_fields_flag):
-                error_message = pn.pane.Markdown("## Make sure all pickle files are selected.")
+            # check that a module pickle file has been selected
+            if not any ('module_' in file for file in files):
+                error_message = pn.pane.Markdown("## Please select the module pickel file (module_<name>.pkl).")
                 field_column.append(error_message)
                 field_col_tracker.append("error_message")
                 return None
-            # no need for fields section, just start pulling the files
             result = update_run_names(event, file_picker_column, file_picker_col_tracker, run_name_column, run_name_col_tracker, field_column, field_col_tracker, file_picker_display, header, tabs_row, s_module)
             return result
         # add option to override TR_fields.txt

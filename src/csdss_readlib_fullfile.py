@@ -93,7 +93,7 @@ def get_shapefile(s_shapefile_name):
 
 def pickler(append_list, baseline_stack, c_default_units, c_field_list, s_module):
     """
-    Creates pickle files of DSS data
+    Creates a single pickle file of DSS data per module
 
     Parameters
     ----------
@@ -124,7 +124,7 @@ def pickler(append_list, baseline_stack, c_default_units, c_field_list, s_module
     # num_fixed = # of columns that are the same in all cases
     num_fixed = 7
 
-    # columns that shouldn't be subtracted TODO this chunk might be different for hydro
+    # columns that shouldn't be subtracted
     li_wyt_cols = [index+num_fixed for index, colname in enumerate(df_all_data.iloc[:, num_fixed:]) if c_default_units[colname] == 'NONE']
     li_fixed_cols_indices = list(range(0, num_fixed)) + li_wyt_cols
     df_fixed_cols = df_all_data.iloc[:, li_fixed_cols_indices]
@@ -136,28 +136,21 @@ def pickler(append_list, baseline_stack, c_default_units, c_field_list, s_module
     df_diff_numeric = df_all_data_numeric.subtract(df_baseline_numeric)
     df_diffs = pd.concat([df_fixed_cols, df_diff_numeric], axis=1)
 
-    pickled_vals = open(path.abspath(f"values_{s_module}.pkl"), 'wb')
-    pickle.dump(df_all_data, pickled_vals)
-    pickled_vals.close()
+    #bundle everything into one dict
+    c_module_data = {
+        'values': df_all_data,
+        'diffs': df_diffs,
+        'units': c_default_units,
+        'fields': c_field_list
+    }
 
-    pickled_diffs = open(path.abspath(f"diffs_{s_module}.pkl"), 'wb')
-    pickle.dump(df_diffs, pickled_diffs)
-    pickled_diffs.close()
-
-    # Pickle units dictionary
-    pickled_units = open(path.abspath(f"units_{s_module}.pkl"), 'wb')
-    pickle.dump(c_default_units, pickled_units)
-    pickled_units.close()
-
-    #pickle field descriptions
-    pickled_fields = open(path.abspath(f"fields_{s_module}.pkl"), 'wb')
-    pickle.dump(c_field_list, pickled_fields)
-    pickled_fields.close()
-
+    pickled_module = open(path.abspath(f"module_{s_module}.pkl"), "wb")
+    pickle.dump(c_module_data, pickled_module)
+    pickled_module.close()
 
 def load_pickles(ls_files, s_module):
     """
-    Reads in pickle files
+    Reads in the pickle file for a module
 
     Parameters
     ----------
@@ -178,51 +171,25 @@ def load_pickles(ls_files, s_module):
         Dictionary of fields and descriptions
     """
     if not ls_files:
-        ls_files = [path.abspath(f"values_{s_module}.pkl"),
-                    path.abspath(f"diffs_{s_module}.pkl"),
-                    path.abspath(f"units_{s_module}.pkl"),
-                    path.abspath(f"fields_{s_module}.pkl")]
-    s_values_path = ''
-    s_diffs_path = ''
-    s_units_path = ''
-    s_fields_path = ''
-    for file in ls_files:
-        # check for each file type and assign the path name
-        if 'values' in file:
-            s_values_path = file
-        if 'diffs' in file:
-            s_diffs_path = file
-        if 'units' in file:
-            s_units_path = file
-        if 'fields' in file:
-            s_fields_path = file
-    try:
-        load_data = open(s_values_path, 'rb')
-        df_all_data = pickle.load(load_data)
-        load_data.close()
-    except:
-        print("Missing \"values.pkl\". Please run pickler")
+        s_module_path = path.abspath(f"module_{s_module}.pkl")
+    else:
+        #ls_files should contain exactly one file: the module pickle
+        s_module_path = ls_files[0]
 
     try:
-        load_diffs = open(s_diffs_path, 'rb')
-        df_diffs = pickle.load(load_diffs)
-        load_diffs.close()
-    except:
-        print("Missing \"diffs.pkl\". Please run pickler")
-
-    try:
-        load_units = open(s_units_path, 'rb')
-        c_default_units = pickle.load(load_units)
-        load_units.close()
-    except:
-        print("Missing \"units.pkl\". Please run pickler")
-
-    try:
-        load_fields = open(s_fields_path, 'rb')
-        c_field_list = pickle.load(load_fields)
-        load_fields.close()
-    except:
-        print("Missing \"fields.pkl\". Please run pickler")
+        load_module = open(s_module_path, 'rb')
+        c_module_data = pickle.load(load_module)
+        load_module.close()
+        df_all_data = c_module_data['values']
+        df_diffs = c_module_data['diffs']
+        c_default_units = c_module_data['units']
+        c_field_list = c_module_data['fields']
+    except FileNotFoundError:
+        print(f'Missing "module_{s_module}.pkl". Please run pickler')
+        return None, None, None, None
+    except (KeyError, pickle.UnpicklingError) as e:
+        print(f'Pickle file for module "{s_module}" is malformed or from an older version: {e}')
+        return None, None, None, None
 
     return (df_all_data, df_diffs, c_default_units, c_field_list)
 
@@ -255,7 +222,7 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name, s_module):
     fid = HecDss.Open(dss_file)
 
     # getPathnamesDict returns a dict of pathnames.
-    pathNames = fid.search_path() #TODO different in hydro
+    pathNames = fid.search_path()
 
     dfPaths = pd.DataFrame(pathNames, columns=["AllPaths"])
 
