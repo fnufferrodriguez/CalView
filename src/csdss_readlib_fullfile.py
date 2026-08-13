@@ -9,6 +9,7 @@ from multiprocessing import Pool
 from os import path
 import warnings
 from collections import Counter
+import geopandas as gpd
 
 def get_trend_fields(s_fields_file):
     """
@@ -56,6 +57,39 @@ def get_trend_fields(s_fields_file):
             c_tr_fields.pop(field)
     return c_tr_fields
 
+def get_shapefile(s_shapefile_name):
+    """
+    Loads a shapefile by name and returns a cleand GeoDataFrame with just ID column and geometry, reprojected to lat/lon for spatial plots.
+    Parameters
+    ----------
+    s_shapefile_name: str (name of the shapefile to load as stored in the field metadata)
+
+    Returns
+    -------
+    o_gdf: GeoDataFrame (ID column + 'geometry')
+    s_id_col: str (name of the ID column, for merging)
+    """
+    c_shapefile_id_cols = {
+        'WBAs': 'WBA_ID',
+        'DemandUnits~2015': 'DU_ID',
+    }
+    c_shapefile_paths = {
+        'WBAs': path.join('WBAs', 'WBAs', 'WBAs.shp'),
+        'DemandUnits~2015':path.join('DUs', 'DemandUnits~2015.shp')
+    }
+    if s_shapefile_name not in c_shapefile_id_cols:
+        print(f"No shapefile mapping for '{s_shapefile_name}'")
+        return None, None
+
+    s_id_col = c_shapefile_id_cols[s_shapefile_name]
+    s_path = path.abspath(path.join(path.dirname(__file__), c_shapefile_paths[s_shapefile_name]))
+
+    if not path.exists(s_path):
+        return None, None
+
+    o_gdf = gpd.read_file(s_path)
+    o_gdf = o_gdf[[s_id_col, 'geometry']].to_crs(4326)
+    return o_gdf, s_id_col
 
 def pickler(append_list, baseline_stack, c_default_units, c_field_list, s_module):
     """

@@ -6,7 +6,6 @@ import pandas as pd
 from src.cs3_plotlib import *
 from functools import partial
 from src.csdss_readlib_fullfile import *
-import geopandas as gpd
 
 
 ## Functions that should work for any version of the visualizer
@@ -644,18 +643,27 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
     # Module for each field
     df_field_names['Module'] = s_module
 
-    # Spatial Eligibility
-    if s_module == 'hydro_out':
-        df_field_names['Spatial Eligible'] = True
-    else:
-        df_field_names['Spatial Eligible'] = False
-
     # temperature eligibility
     if s_module == 'temperature':
         df_field_names['Single Year Eligible'] = True
     else:
         df_field_names['Single Year Eligible'] = False
 
+    # Shapefile assignment per field
+    c_module_shapefiles = {
+        'hydro_out': {'AWO': 'DemandUnits~2015', 'AWR': 'DemandUnits~2015','AWW': 'DemandUnits~2015','TW': 'DemandUnits~2015',
+                      'UD': 'DemandUnits~2015', 'WW': 'DemandUnits~2015',  'FR': 'DemandUnits~2015',
+                      'DP': 'WBAs', 'SR': 'WBAs'}
+    }
+    if s_module in c_module_shapefiles:
+        c_prefix_to_shapefile = c_module_shapefiles[s_module]
+        ls_shapefiles = []
+        for s_field in df_field_names.index:
+            s_prefix = get_spatial_group(s_field)
+            ls_shapefiles.append(c_prefix_to_shapefile.get(s_prefix))
+        df_field_names['Shapefile'] = ls_shapefiles
+    else:
+        df_field_names['Shapefile'] = None
     # Title for fields and descriptions
     o_field_names_title = pn.pane.Markdown("# Fields and descriptions")
 
@@ -778,7 +786,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         c_field_list_all.update(c_field_list)
         c_default_units_all.update(c_default_units)
         if s_comparison is None:
-            s_comparison = s_mod_comparison  # todo: first module wins, revisit later
+            s_comparison = s_mod_comparison
 
         #create metadata
         o_metadata, df_field_names = create_metadata(scenario_names, c_field_list, c_default_units, s_module)
@@ -897,7 +905,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         )
 
     all_fields = df_field_names_combined.index.tolist()
-    spatial_fields = df_field_names_combined[df_field_names_combined['Spatial Eligible']].index.tolist()
+    spatial_fields = df_field_names_combined.loc[df_field_names_combined['Shapefile'].notna()].index.tolist()
 
     single_year_fields = df_field_names_combined[df_field_names_combined['Single Year Eligible']].index.tolist()
     b_have_single_year = len(single_year_fields) > 0
@@ -1040,46 +1048,41 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             i_year=o_year_selector
         )
 
-
     b_have_spatial = len(spatial_fields) > 0
-    if b_have_spatial:  # only create spatial plot if shapefile is present for hydro
-        #get variables from field list
+    if b_have_spatial:  # only build spatial plot if spatial fields are present
+        # prefixes present in the data (same grouping plot_spatial uses)
+        ls_spatial_prefixes = sorted(set(get_spatial_group(s_field) for s_field in spatial_fields))
 
-        #special case for DP
-        def get_spatial_prefix(field):
-            if field.startswith('DP_') and field.endswith(('_EXT', '_INT')):
-                suffix = field.split('_')[-1]  # 'EXT' or 'INT'
-                return f'DP_{suffix}'  # -> 'DP_EXT' or 'DP_INT'
-            return field.split('_')[0]
-
-        ls_spatial_prefixes = sorted(set(get_spatial_prefix(field) for field in spatial_fields))
         spatial_var_sel = pn.widgets.Select(
             name='Spatial Variable Selector',
             options=ls_spatial_prefixes,
             width=400
         )
 
-        # Import the Shapefiles based on variable todo change so based off metadata
+        # map each prefix to its shapefile name, from the metadata Shapefile column
+        c_prefix_to_shapefile = {}
+        for s_field in spatial_fields:
+            s_prefix = get_spatial_group(s_field)
+            s_shapefile_name = df_field_names_combined['Shapefile'].get(s_field)
+            if not pd.isna(s_shapefile_name):
+                c_prefix_to_shapefile[s_prefix] = s_shapefile_name
+
+        # load each unique shapefile once, then key gdfs by prefix for plot_spatial
+        c_gdf_by_name = {}
         c_gdf_by_prefix = {}
-        for var in ls_spatial_prefixes:
-            if var == "DP" or var == "SR":
-                s_shapefile_path=path.abspath(path.join(path.dirname(__file__), 'WBAs/WBAs/WBAs.shp'))
-                id_col = 'WBA_ID'
-            else:
-                s_shapefile_path=path.abspath(path.join(path.dirname(__file__), 'DUs/DemandUnits~2015.shp'))
-                id_col = 'DU_ID'
+        b_have_shapefile = False
+        for s_prefix, s_shapefile_name in c_prefix_to_shapefile.items():
+            if s_shapefile_name not in c_gdf_by_name:
+                o_gdf, s_id_col = get_shapefile(s_shapefile_name)
+                c_gdf_by_name[s_shapefile_name] = o_gdf
+                if o_gdf is None:
+                    print(f"Shapefile not found for '{s_shapefile_name}'")
+            o_gdf = c_gdf_by_name[s_shapefile_name]
+            if o_gdf is not None:
+                c_gdf_by_prefix[s_prefix] = o_gdf
+                b_have_shapefile = True
 
-            b_have_shapefile = path.exists(s_shapefile_path)
-            if b_have_shapefile:
-                gdf = gpd.read_file(s_shapefile_path)
-                gdf = gdf[[id_col, 'geometry']]
-                gdf = gdf.to_crs(4326)  # HVplot requires lat/lon to plot with 'geo=True'
-                c_gdf_by_prefix[var] = gdf
-            else:
-                print(f"Shapefile n ot found for {var}: {s_shapefile_path}")
-
-            # Spatial plots
-
+        if b_have_shapefile:
             bound_plot_spatial = pn.bind(
                 plot_spatial,
                 scenario_list=scen_selector,
@@ -1673,7 +1676,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
         if s_module == 'calsim':
             c_tr_fields = get_trend_fields('TR_fields.txt')
         elif s_module == 'hydro_out':
-            c_tr_fields = get_trend_fields('TR_fields_CSH.txt')
+            c_tr_fields = get_trend_fields('TR_fields_CSH_alternate.txt')
 
         # get the overridden fields
         override_TR_fields = field_column[field_col_tracker.index("override_file")].value

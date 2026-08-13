@@ -2135,7 +2135,7 @@ def get_spatial_group(field):
 def plot_spatial(scenario_list, var_list, unit_choice, df_all,
                  c_default_units_all, period_choice, s_comparison, spatial_var_choice, c_gdf):
     """
-    Creates spatial plot of annual average values by Water Balance Area
+    Creates spatial plot of annual average values by Area
 
     Parameters
     ----------
@@ -2154,7 +2154,7 @@ def plot_spatial(scenario_list, var_list, unit_choice, df_all,
     s_comparison: str
         Name of comparison scenario
     spatial_var_choice: str
-        Substring identifying which variable group to plot (e.g. 'AL', 'CO', 'CR', 'CU')
+        Substring identifying which variable group to plot
     c_gdf: dict
        Dict mapping spatial prefix -> GeoDataFrame with 'ID' and 'geometry' columns
 
@@ -2163,23 +2163,19 @@ def plot_spatial(scenario_list, var_list, unit_choice, df_all,
     Panel Object
         Map and table of annual average data
     """
-    #normalize suffix groups (e.g. 'DP_EXT') back to base group for shapefile lookup
-    strip_suffix = spatial_var_choice.endswith(('_EXT', '_INT'))
-    gdf_key = spatial_var_choice.rsplit('_', 1)[0] if strip_suffix else spatial_var_choice
-
     # look up correct GeoDataFrame for the selected variable
-    gdf = c_gdf.get(gdf_key)
-    if gdf is None:
+    o_gdf = c_gdf.get(spatial_var_choice)
+    if o_gdf is None:
         return pn.pane.Markdown(f"No shapefile available for '{spatial_var_choice}'")
-    gdf = gdf.copy()
+    o_gdf = o_gdf.copy()
 
     #determine ID column name based on variable
-    id_col = [c for c in gdf.columns if c != 'geometry'][0]
+    s_id_col = [s_col for s_col in o_gdf.columns if s_col != 'geometry'][0]
 
-    all_var_list = [c for c in df_all if not c in ['Date', 'Scenario', 'Year', 'Month', 'JanDecYear', 'OctSeptYear', 'MarFebYear']]
-    matched_var_list = [v for v in all_var_list if get_spatial_group(v) == spatial_var_choice]
+    ls_all_var = [s_col for s_col in df_all if s_col not in ['Date', 'Scenario', 'Year', 'Month', 'JanDecYear', 'OctSeptYear', 'MarFebYear']]
+    ls_matched_var = [s_var for s_var in ls_all_var if get_spatial_group(s_var) == spatial_var_choice]
 
-    if not matched_var_list:
+    if not ls_matched_var:
         return pn.pane.Markdown(f"No matching data fields found for '{spatial_var_choice}'")
 
     df_all_plot = df_all.copy(deep=True)
@@ -2188,26 +2184,39 @@ def plot_spatial(scenario_list, var_list, unit_choice, df_all,
     # check if comparison scen is in the data frame
     # if it's not, then we are creating the differences plot and don't want to include comparison scen
     if s_comparison not in df_all_plot.Scenario.unique():
-        scenario_list = [scen for scen in scenario_list if scen != s_comparison]
+        scenario_list = [s_scen for s_scen in scenario_list if s_scen != s_comparison]
 
     if len(scenario_list) == 0:
         return
 
-    df_wide = df_all_plot[df_all_plot.Scenario == scenario_list[0]][['Date', 'OctSeptYear', 'Month'] + matched_var_list]
-    df_annAvgTS = df_wide.groupby(by=['OctSeptYear'])[matched_var_list].sum()
-    df_annAvg = pd.DataFrame(df_annAvgTS[matched_var_list].mean()).reset_index()
-    df_annAvg.columns = ['Variable', 'AnnualAverage']
+    # pick a scenario that actually has the spatial fields
+    df_scen_has_data = (
+        df_all_plot[df_all_plot['Scenario'].isin(scenario_list)]
+        .groupby('Scenario')[ls_matched_var]
+        .apply(lambda g: g.notna().any().any())
+    )
+    ls_valid_scens = [s_scen for s_scen in scenario_list if df_scen_has_data.get(s_scen, False)]
+    if not ls_valid_scens:
+        return pn.pane.Markdown("## No spatial data for the selected scenarios")
+    s_scen_to_use = ls_valid_scens[0]
 
-    df_annAvg[id_col] = ['_'.join(v.split("_")[1:]) for v in df_annAvg.Variable]
-    if strip_suffix:
-        df_annAvg[id_col] = df_annAvg[id_col].str.rsplit('_', n=1).str[0]
+    df_wide = df_all_plot[df_all_plot.Scenario == s_scen_to_use][['Date', 'OctSeptYear', 'Month'] + ls_matched_var]
+    df_ann_avg_ts = df_wide.groupby(by=['OctSeptYear'])[ls_matched_var].sum()
+    df_ann_avg = pd.DataFrame(df_ann_avg_ts[ls_matched_var].mean()).reset_index()
+    df_ann_avg.columns = ['Variable', 'AnnualAverage']
 
-    gdf = gdf.merge(df_annAvg, left_on=id_col, right_on=id_col, how='inner')
-    gdf_plot = gdf[['geometry', 'AnnualAverage']]
-    gdf_plot = gdf_plot.dropna(subset=['geometry'])
+    # derive the merge ID from the variable name (strip the leading prefix segment)
+    b_strip_suffix = spatial_var_choice.endswith(('_EXT', '_INT'))
+    df_ann_avg[s_id_col] = ['_'.join(s_var.split("_")[1:]) for s_var in df_ann_avg.Variable]
+    if b_strip_suffix:
+        df_ann_avg[s_id_col] = df_ann_avg[s_id_col].str.rsplit('_', n=1).str[0]
+
+    o_gdf = o_gdf.merge(df_ann_avg, left_on=s_id_col, right_on=s_id_col, how='inner')
+    o_gdf_plot = o_gdf[['geometry', 'AnnualAverage']]
+    o_gdf_plot = o_gdf_plot.dropna(subset=['geometry'])
 
     return pn.Column(
-        pn.pane.HoloViews(gdf_plot.hvplot(
+        pn.pane.HoloViews(o_gdf_plot.hvplot(
             c='AnnualAverage', geo=True, frame_height=800),
                           center=True),
-        pn.pane.DataFrame(df_annAvg, max_height=700))
+        pn.pane.DataFrame(df_ann_avg, max_height=700))
