@@ -68,6 +68,26 @@ def clear_container(event, container):
     for _ in range(len(container)):
         container.pop(0)
 
+def filter_vars_to_module(selected_vars, c_module_fields):
+    """
+    Filters a selected variable list down to only those fields belonging to a
+    given module. Used so each module's difference plot receives only the fields
+    present in that module's dataframe, avoiding KeyErrors on absent columns.
+
+    Parameters
+    ----------
+    selected_vars: list
+        Currently selected variables from the shared variable selector
+    c_module_fields: dict
+        This module's field -> description dictionary (its c_field_list)
+
+    Returns
+    -------
+    list
+        The subset of selected_vars that exist in this module
+    """
+    return [var for var in selected_vars if var in c_module_fields]
+
 def build_naming_stage(event, c_module_containers, c_flag, module_column, c_modules, header, tabs_row, old_new_sel):
     """
     Clears the file-picker stage entirely and rebuilds the page as the naming stage:
@@ -534,16 +554,6 @@ def create_widgets(scenario_names, c_field_list):
     # for the field names we need a diction of {description: field}
     c_description_to_field = {description: field for field, description in c_field_list.items()}
 
-    # Select the variables todo move into the tabs
-    var_selector = pn.widgets.MultiChoice(
-        name='Variable Selector',
-        options=c_description_to_field,
-        value=[list(c_description_to_field.values())[0]],
-        option_limit=len(list(c_description_to_field.keys())),
-        search_option_limit=len(list(c_description_to_field.keys())),
-        width=400
-    )
-
     # Stat selector for bar plots
     bar_stat_sel = pn.widgets.Select(
         name='Statistic Selector',
@@ -572,7 +582,7 @@ def create_widgets(scenario_names, c_field_list):
     exceedance_show_year_check_diffs = pn.widgets.Checkbox(name='Show year in table')
 
     # Return all these widgets
-    return scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year, var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs, wba_spatial_sel
+    return scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs, wba_spatial_sel
 
 
 def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
@@ -792,7 +802,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
 
     # Create the shared widgets
     (scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year,
-     var_selector, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs, wba_spatial_sel) = create_widgets(scenario_names_combined, c_field_list_all)
+      bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs, wba_spatial_sel) = create_widgets(scenario_names_combined, c_field_list_all)
     #spatial plotting is always on for hydro (intentially not using wba_spatial_sel
     # to update the visibility when period is changed todo remove?
     wyt_watcher = period_selector.param.watch(partial(hide_show_wyt, header=header), 'value')
@@ -912,18 +922,6 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         c_field_list=c_field_list_all
     )
 
-    # Differences timeseries plot
-    bound_plot_diffs_ts = pn.bind(
-        plot_values,
-        scenario_list=scen_selector,
-        var_list=var_selector_ts,
-        unit_choice=unit_selector,
-        df_all=df_diffs_combined,
-        c_default_units=c_default_units_all,
-        s_comparison=s_comparison,
-        c_field_list=c_field_list_all
-    )
-
     # Time aggregated plot
     bound_plot_grouped = pn.bind(
         plot_time_group,
@@ -940,79 +938,10 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         li_wyt_period_months=wyt_period_selector
     )
 
-    # Time aggregated differences plot
-    bound_plot_grouped_diff = pn.bind(
-        plot_time_group,
-        scenario_list=scen_selector,
-        var_list=var_selector_grouped,
-        unit_choice=unit_selector,
-        df_all=df_diffs_combined,
-        c_default_units=c_default_units_all,
-        period_choice=period_selector,
-        s_comparison=s_comparison,
-        c_field_list=c_field_list_all,
-        li_wyt_selected=wyt_selector,
-        b_wyt_period_year=wyt_period_selector_year,
-        li_wyt_period_months=wyt_period_selector
-    )
-
-    # # Exceedance plot todo fix
-    # bound_plot_exceedance = pn.bind(
-    #     plot_time_exceedance,
-    #     scenario_list=scen_selector,
-    #     var_list=var_selector_exceedance,
-    #     unit_choice=unit_selector,
-    #     df_all=df_all_data_combined,
-    #     c_default_units=c_default_units_all,
-    #     period_choice=period_selector,
-    #     s_comparison=s_comparison,
-    #     c_field_list=c_field_list_all,
-    #     li_wyt_selected=wyt_selector,
-    #     b_wyt_period_year=wyt_period_selector_year,
-    #     li_wyt_period_months=wyt_period_selector,
-    #     b_show_year=exceedance_show_year_check,
-    #     s_module = s_module
-    # )
-    #
-    # # Exceedance differences plot
-    # bound_plot_diffs_exceedance = pn.bind(
-    #     plot_time_exceedance,
-    #     scenario_list=scen_selector,
-    #     var_list=var_selector_exceedance,
-    #     unit_choice=unit_selector,
-    #     df_all=df_diffs_combined,
-    #     c_default_units=c_default_units_all,
-    #     period_choice=period_selector,
-    #     s_comparison=s_comparison,
-    #     c_field_list=c_field_list_all,
-    #     li_wyt_selected=wyt_selector,
-    #     b_wyt_period_year=wyt_period_selector_year,
-    #     li_wyt_period_months=wyt_period_selector,
-    #     b_show_year=exceedance_show_year_check_diffs,
-    #     s_module = s_module
-    #)
-
     # Bar plot
     bound_single_var_plot = pn.bind(
         plot_bars,
         df_all=df_all_data_combined,
-        period_choice=period_selector,
-        var_list=var_selector_bar,
-        scenario_list=scen_selector,
-        unit_choice=unit_selector,
-        stat_choice=bar_stat_sel,
-        c_default_units=c_default_units_all,
-        s_comparison=s_comparison,
-        c_field_list=c_field_list_all,
-        li_wyt_selected=wyt_selector,
-        b_wyt_period_year=wyt_period_selector_year,
-        li_wyt_period_months=wyt_period_selector
-    )
-
-    # Difference bar plot
-    bound_single_var_diff_plot = pn.bind(
-        plot_bars,
-        df_all=df_diffs_combined,
         period_choice=period_selector,
         var_list=var_selector_bar,
         scenario_list=scen_selector,
@@ -1041,21 +970,54 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         li_wyt_selected=wyt_selector
     )
 
-    # Monthly pattern differences plot
-    bound_monthly_diffs_plot = pn.bind(
-        monthly_pattern,
-        df_all=df_diffs_combined,
-        var_list=var_selector_monthly,
-        scenario_list=scen_selector,
-        unit_choice=unit_selector,
-        stat_choice=monthly_stat_sel,
-        c_default_units=c_default_units_all,
-        s_comparison=s_comparison,
-        c_field_list=c_field_list_all,
-        period_choice=period_selector,
-        li_wyt_selected=wyt_selector
-    )
+    #module specific comparison plots
+    c_diff_plots = {'ts':[], 'grouped': [], 'bar': [], 'monthly': []}
+    for df_all_m, df_diffs_m, c_units_m, c_fields_m, s_mod_comp_m, scen_names_m, s_mod_m in module_results:
+        #filtered var list
+        mod_var_ts = pn.bind(filter_vars_to_module, var_selector_ts, c_fields_m)
+        mod_var_grouped = pn.bind(filter_vars_to_module, var_selector_grouped, c_fields_m)
+        mod_var_bar = pn.bind(filter_vars_to_module, var_selector_bar, c_fields_m)
+        mod_var_monthly = pn.bind(filter_vars_to_module, var_selector_monthly, c_fields_m)
 
+        #time series comparison plots
+        c_diff_plots['ts'].append((s_mod_m, s_mod_comp_m, pn.bind(
+            plot_values,
+            scenario_list=scen_selector, var_list=mod_var_ts,
+            unit_choice=unit_selector, df_all=df_diffs_m,
+            c_default_units=c_units_m, s_comparison=s_mod_comp_m,
+            c_field_list=c_fields_m,
+        )))
+        #time aggregated differences plots
+        c_diff_plots['grouped'].append((s_mod_m, s_mod_comp_m, pn.bind(
+            plot_time_group,
+            scenario_list=scen_selector, var_list=mod_var_grouped,
+            unit_choice=unit_selector, df_all=df_diffs_m,
+            c_default_units=c_units_m, period_choice=period_selector,
+            s_comparison=s_mod_comp_m, c_field_list=c_fields_m,
+            li_wyt_selected=wyt_selector, b_wyt_period_year=wyt_period_selector_year,
+            li_wyt_period_months=wyt_period_selector,
+        )))
+        #difference bar plot
+        c_diff_plots['bar'].append((s_mod_m, s_mod_comp_m, pn.bind(
+            plot_bars,
+            df_all=df_diffs_m, period_choice=period_selector,
+            var_list=mod_var_bar, scenario_list=scen_selector,
+            unit_choice=unit_selector, stat_choice=bar_stat_sel,
+            c_default_units=c_units_m, s_comparison=s_mod_comp_m,
+            c_field_list=c_fields_m, li_wyt_selected=wyt_selector,
+            b_wyt_period_year=wyt_period_selector_year,
+            li_wyt_period_months=wyt_period_selector,
+        )))
+        #monthly pattern differences plot
+        c_diff_plots['monthly'].append((s_mod_m, s_mod_comp_m, pn.bind(
+            monthly_pattern,
+            df_all=df_diffs_m, var_list=mod_var_monthly,
+            scenario_list=scen_selector, unit_choice=unit_selector,
+            stat_choice=monthly_stat_sel, c_default_units=c_units_m,
+            s_comparison=s_mod_comp_m, c_field_list=c_fields_m,
+            period_choice=period_selector, li_wyt_selected=wyt_selector,
+        )))
+    #temperature plots
     if b_have_single_year:
         c_field_list_single_year = {f: d for f, d in c_field_list_all.items() if f in single_year_fields}
         o_year_selector = pn.widgets.IntInput(name='Year', value=1923, step=1, start=1922, end=2021, width=100)
@@ -1079,7 +1041,6 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         )
 
 
-    # TODO make sure this works - maybe move to own function
     b_have_spatial = len(spatial_fields) > 0
     if b_have_spatial:  # only create spatial plot if shapefile is present for hydro
         #get variables from field list
@@ -1149,18 +1110,10 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     ts_title = pn.pane.Markdown("# Timeseries Plot"
                                 )
 
-    diffs_ts_title = pn.pane.Markdown("# Timeseries Plot (Difference from " + s_comparison + ")"
-                                      )
-
     grouped_title = pn.bind(create_plot_title,
                             s_title="Time-Aggregated Plot",
                             s_comparison='',
                             s_period=period_selector)
-
-    grouped__diff_title = pn.bind(create_plot_title,
-                                  s_title="Time-Aggregated Plot",
-                                  s_comparison=s_comparison,
-                                  s_period=period_selector)
 
     single_var_title = pn.bind(create_plot_title,
                                s_title="Bar Plot",
@@ -1168,21 +1121,9 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
                                s_period=period_selector,
                                s_stat=bar_stat_sel)
 
-    single_var_diff_title = pn.bind(create_plot_title,
-                                    s_title="Bar Plot",
-                                    s_comparison=s_comparison,
-                                    s_period=period_selector,
-                                    s_stat=bar_stat_sel)
-
     monthly_title = pn.bind(create_plot_title,
                             s_title="Monthly Pattern",
                             s_stat=monthly_stat_sel)
-
-    monthly_diffs_title = pn.bind(create_plot_title,
-                                  s_title="Monthly Pattern",
-                                  s_comparison=s_comparison,
-                                  s_stat=monthly_stat_sel)
-
 
     if b_have_spatial and b_have_shapefile: # only create spatial plot for hydro
         spatial_title = pn.bind(create_plot_title,
@@ -1197,38 +1138,55 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
                                 s_period=period_selector,
                                 s_stat = spatial_var_sel)
 
+    def make_diff_cards(ls_diff, s_plot_type, target_column, c_modules):
+        for s_mod_m, s_mod_comp_m, bound_plot_m in ls_diff:
+            mod_title = pn.pane.Markdown(
+                f"# {c_modules.get(s_mod_m, s_mod_m)} {s_plot_type} (Difference from {s_mod_comp_m})")
+            target_column.append(pn.Card(
+                mod_title,
+                bound_plot_m,
+                title=f"{c_modules.get(s_mod_m, s_mod_m)} Comparison",
+                collapsible=True,
+                margin=10,
+                header_background='#003E51',
+                header_color='white',
+                styles={'border': '2px solid #003E51'},
+            ))
 
     # Lay out the plots and titles
     # These will hold the plots
     single_var_plots = pn.Column()
-    timeseries_plots = pn.Row()
-    grouped_plots = pn.Row()
+    timeseries_plots = pn.Column()
+    grouped_plots = pn.Column()
     exceedance_plots = pn.Column()
     monthly_plots = pn.Column()
-
     if b_have_spatial:
         spatial_plots = pn.Column()
-
     if b_have_single_year:
         one_year_plots = pn.Column()
 
     # Add everything into these containers
+    # Bar
     single_var_widgets = pn.Row(bar_stat_sel, var_selector_bar)
-
     single_var_plots.append(single_var_widgets)
-    single_var_plots.append(pn.Row(pn.Column(single_var_title,bound_single_var_plot),pn.Column(single_var_diff_title,bound_single_var_diff_plot)))
+    single_var_plots.append(pn.Column(single_var_title, bound_single_var_plot))
+    make_diff_cards(c_diff_plots['bar'], "Bar Plot", single_var_plots, c_modules)
 
-    timeseries_plots.append(pn.Column(ts_title,var_selector_ts, bound_plot_ts))
-    timeseries_plots.append(pn.Column(diffs_ts_title,bound_plot_diffs_ts))
+    # Timeseries
+    timeseries_plots.append(pn.Column(ts_title, var_selector_ts, bound_plot_ts))
+    make_diff_cards(c_diff_plots['ts'], "Timeseries", timeseries_plots, c_modules)
 
-    grouped_plots.append(pn.Column(grouped_title,var_selector_grouped, bound_plot_grouped))
-    grouped_plots.append(pn.Column(grouped__diff_title,bound_plot_grouped_diff))
+    # Time-Aggregated
+    grouped_plots.append(pn.Column(grouped_title, var_selector_grouped, bound_plot_grouped))
+    make_diff_cards(c_diff_plots['grouped'], "Time-Aggregated Plot", grouped_plots, c_modules)
+
+    # Monthly
+    monthly_plots.append(pn.Row(monthly_stat_sel))
+    monthly_plots.append(pn.Column(monthly_title, var_selector_monthly, bound_monthly_plot))
+    make_diff_cards(c_diff_plots['monthly'], "Monthly Pattern", monthly_plots, c_modules)
 
     for section in exceedance_sections:
         exceedance_plots.append(section)
-
-    monthly_plots.append(pn.Row(monthly_stat_sel))
-    monthly_plots.append(pn.Row(pn.Column(monthly_title, var_selector_monthly, bound_monthly_plot), pn.Column(monthly_diffs_title, bound_monthly_diffs_plot)))
 
     if b_have_single_year:
         one_year_plots.append(pn.Row(o_year_selector, o_reservoir_toggle))
@@ -1544,7 +1502,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
     #check if we have exactl one file marked for comparison and if not give an error
     if path.isdir(files[0]) or "dss" in files[0].rsplit(".",1)[1]:
         if sum([run_name_column[i].value for i, x in enumerate(run_name_col_tracker) if x == "dss_comparison_checkbox"]) != 1:
-            error_message = pn.pane.Markdown("## Please make sure that exactly one file is marked for comparison.")
+            error_message = pn.pane.Markdown("## Please make sure that exactly one file is marked for comparison for each module.")
             field_column.append(error_message)
             field_col_tracker.append('error_message')
             return
