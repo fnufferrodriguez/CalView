@@ -106,6 +106,13 @@ def build_naming_stage(event, c_module_containers, c_flag, module_column, c_modu
         Panel Column that holds the naming stage; cleared and rebuilt by this function
     c_modules: dict
         Dictionary mapping module keys to their display names, used for Card titles
+    header: obj
+        Panel Row for shared widgets to go in, passed through to create_plots
+    tabs_row: obj
+        Panel Row for tabs to go in, passed through to create_plots
+    old_new_sel: obj
+        Run-type radio button widget; its value determines whether the pickle-loading
+        path or the DSS-naming path is used
 
     Returns
     -------
@@ -747,28 +754,24 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
 
     Parameters
     ----------
-    scenario_names: list
-        List of possible scenarios to select from
-    c_field_list: dict
-        Dictionary of field name and descriptions
-    df_all_data: DataFrame
-        DataFrame with all of the data that can be plotted
-    c_default_units: dict
-        Diction of default units for all fields
-    df_diffs: DataFrame
-        Dataframe of difference from comparison scenario data
-    s_comparison: str
-        Name of comparison scenario
-    header: object
-        Panel Row for widget to go in
-    tabs_row: object
-        Panel Row for tabs to go in
-    s_module: str
-        Module from c_flag
+    event: obj
+        Event from the button/widget that triggered this (unused, but required by on_click/watch)
+    module_results: list
+        List of per-module tuples, each in the form
+        (df_all_data, df_diffs, c_default_units, c_field_list, s_comparison,
+        scenario_names, s_module), as returned by update_run_names for each active module
+    module_column: obj
+        Panel Column holding the naming stage; cleared once all modules' data is combined
+    header: obj
+        Panel Row that shared widgets (scenario selector, period selector, unit selector) are appended to
+    tabs_row: obj
+        Panel Row that the final tabs (Bar Plot, Timeseries, Spatial, Metadata, etc.) are appended to
+    c_modules: dict, optional
+        Dictionary mapping module keys to their display names, used for tab/card titles
 
     Returns
     -------
-        none
+        none (mutates module_column, header, and tabs_row in place)
     """
     #all modules failed validation
     if len(module_results)==0:

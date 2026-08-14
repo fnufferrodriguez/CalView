@@ -32,7 +32,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
     Returns
     -------
     Panel Object
-        Plot and table of data as a column
+        Plot and table of data as a row (plot on the left, table on the right)
     """
 
     # if the data frame is empty, return a markdown frame. This will happen if only one scenario is selected and its the comparison one. the differences will be empty
@@ -308,7 +308,8 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
     Returns
     -------
     Panel Object
-        Plot and table of data as a column
+        Plot and table side-by-side as a row. If grouping by water year type the row
+        is preceded by a title describing the selected WYTs.
     """
 
     # if the data frame is empty, return a markdown frame. This will happen if only one scenario is selected and its the comparison one. the differences will be empty
@@ -1251,7 +1252,8 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     Returns
     -------
     Panel Object
-            Plot and table of data as a column
+        Plot and table side-by-side as a row. If grouping by water year type the row
+        is preceded by a title describing the selected WYTs.
     """
 
     # if the data frame is empty, return a markdown frame. This will happen if only one scenario is selected and its the comparison one. the differences will be empty
@@ -1837,7 +1839,8 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
     Returns
     -------
     Panel Object
-            Plot and table of data as a column
+        A column containing the WYT title (if applicable) followed by a row with the
+        plot on the left and the full data table on the right
     """
 
     # if the data frame is empty, return a markdown frame. This will happen if only one scenario is selected and its the comparison one. the differences will be empty
