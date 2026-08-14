@@ -2173,7 +2173,7 @@ def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year):
         # create the cold water plot
         df_plot_cold_water = df_cold_water.loc[df_cold_water['Scenario'] == scenario][['Date'] + ls_cold_water_vars]
         df_plot_cold_water.reset_index(inplace=True, drop=True)
-        df_plot_cold_water = df_plot_cold_water.round()
+        df_plot_cold_water[ls_cold_water_vars] = df_plot_cold_water[ls_cold_water_vars].round()
 
         o_plot_cold_water = df_plot_cold_water.hvplot.bar(x='Date', line_color=None, stacked=True, color=['#4C12A1', '#003E51', '#007396', '#215732', '#C69214', '#FF671F', '#9A3324'], grid=True).opts(
             title=scenario + ' Cold Water Profile', ylabel=s_reservoir+' Storage (TAF)', min_width=1200, min_height=600, legend_position='bottom', yformatter='%.0f', xticks=o_cold_water_dates[::2])

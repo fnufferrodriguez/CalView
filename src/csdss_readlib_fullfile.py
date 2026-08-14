@@ -357,20 +357,18 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
                 df_all_data.dropna(how='any', inplace=True)
 
                 # Add in the columns not pulled from the DSS file
-                # Calender year, month, water year, contract year
-                df_all_data.insert(0, 'JanDecYear', df_all_data.index.year)
-                df_all_data.insert(0, 'Month', df_all_data.index.month)
-                df_all_data.insert(0, 'Year', df_all_data.index.year)
-                df_all_data.insert(0, 'MarFebYear', np.where(df_all_data['Month'] >= 3, df_all_data['Year'], df_all_data['Year'] - 1))
-                df_all_data.insert(0, 'OctSeptYear', np.where(df_all_data['Month'] <= 9, df_all_data['Year'], df_all_data['Year'] + 1))
-
-                # add scenario name
-                df_all_data.insert(0, 'Scenario', run[0])
-
-                # make date a column
-                df_all_data['Date'] = df_all_data.index
-                date_temp = df_all_data.pop('Date')
-                df_all_data.insert(0, 'Date', date_temp)
+                i_month = df_all_data.index.month
+                i_year = df_all_data.index.year
+                df_new_cols = pd.DataFrame({
+                    'Date': df_all_data.index,
+                    'Scenario': run[0],
+                    'OctSeptYear': np.where(i_month <= 9, i_year, i_year + 1),
+                    'MarFebYear': np.where(i_month >= 3, i_year, i_year - 1),
+                    'Year': i_year,
+                    'Month': i_month,
+                    'JanDecYear': i_year
+                }, index=df_all_data.index)
+                df_all_data = pd.concat([df_new_cols, df_all_data], axis=1)
 
                 # make sure to remove ones that were not found
                 c_field_list_final = {field: c_field_list_final[field] for field in c_field_list_final if field in c_target_ts_list}
@@ -464,20 +462,18 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
                 df_all_data = pd.concat([df_s_CALSIMII_result, df_a_CALSIMII_result, df_SR_WQ_result, df_AR_WQ_result, df_calsim_SV_result, df_calsim_DV_result], axis=1, join='outer')
 
                 # Add in the columns not pulled from the DSS file
-                # Calender year, month, water year, contract year
-                df_all_data.insert(0, 'JanDecYear', df_all_data.index.year)
-                df_all_data.insert(0, 'Month', df_all_data.index.month)
-                df_all_data.insert(0, 'Year', df_all_data.index.year)
-                df_all_data.insert(0, 'MarFebYear', np.where(df_all_data['Month'] >= 3, df_all_data['Year'], df_all_data['Year'] - 1))
-                df_all_data.insert(0, 'OctSeptYear', np.where(df_all_data['Month'] <= 9, df_all_data['Year'], df_all_data['Year'] + 1))
-
-                # add scenario name
-                df_all_data.insert(0, 'Scenario', run[0])
-
-                # make date a column
-                df_all_data['Date'] = df_all_data.index
-                date_temp = df_all_data.pop('Date')
-                df_all_data.insert(0, 'Date', date_temp)
+                i_month = df_all_data.index.month
+                i_year = df_all_data.index.year
+                df_new_cols = pd.DataFrame({
+                    'Date': df_all_data.index,
+                    'Scenario': run[0],
+                    'OctSeptYear': np.where(i_month <= 9, i_year, i_year + 1),
+                    'MarFebYear': np.where(i_month >= 3, i_year, i_year - 1),
+                    'Year': i_year,
+                    'Month': i_month,
+                    'JanDecYear': i_year,
+                }, index=df_all_data.index)
+                df_all_data = pd.concat([df_new_cols, df_all_data], axis=1)
 
                 # combine all field lists together
                 c_field_list_curr = c_calsim_SV_target_ts_list | c_calsim_DV_target_ts_list | c_SR_WQ_target_ts_list | c_AR_WQ_target_ts_list | c_s_CALSIMII_target_ts_list | c_a_CALSIMII_target_ts_list
@@ -502,20 +498,18 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
                 df_all_data = pd.concat([df_flow_result, df_ec_result], axis=1, join='outer')
 
                 # Add in the columns not pulled from the DSS file
-                # Calender year, month, water year, contract year
-                df_all_data.insert(0, 'JanDecYear', df_all_data.index.year)
-                df_all_data.insert(0, 'Month', df_all_data.index.month)
-                df_all_data.insert(0, 'Year', df_all_data.index.year)
-                df_all_data.insert(0, 'MarFebYear', np.where(df_all_data['Month'] >= 3, df_all_data['Year'], df_all_data['Year'] - 1))
-                df_all_data.insert(0, 'OctSeptYear', np.where(df_all_data['Month'] <= 9, df_all_data['Year'], df_all_data['Year'] + 1))
-
-                # add scenario name
-                df_all_data.insert(0, 'Scenario', run[0])
-
-                # make date a column
-                df_all_data['Date'] = df_all_data.index
-                date_temp = df_all_data.pop('Date')
-                df_all_data.insert(0, 'Date', date_temp)
+                i_month = df_all_data.index.month
+                i_year = df_all_data.index.year
+                df_new_cols = pd.DataFrame({
+                    'Date': df_all_data.index,
+                    'Scenario': run[0],
+                    'OctSeptYear': np.where(i_month <= 9, i_year, i_year + 1),
+                    'MarFebYear': np.where(i_month >= 3, i_year, i_year - 1),
+                    'Year': i_year,
+                    'Month': i_month,
+                    'JanDecYear': i_year,
+                }, index=df_all_data.index)
+                df_all_data = pd.concat([df_new_cols, df_all_data], axis=1)
 
                 # combine all field lists together
                 c_field_list_curr = c_flow_target_ts_list | c_ec_target_ts_list
@@ -529,24 +523,22 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
             elif s_module == 'hydro_out':
                 df_all_data, c_target_ts_list, c_default_units = single_file_pull(run[1], c_field_list, run[0], s_module)
 
-                #assume all monthly data but TODO check this
+                #assume all monthly data
                 df_all_data.dropna(how='any', inplace=True)
 
                 # Add in the columns not pulled from the DSS file
-                # Calender year, month, water year, contract year
-                df_all_data.insert(0, 'JanDecYear', df_all_data.index.year)
-                df_all_data.insert(0, 'Month', df_all_data.index.month)
-                df_all_data.insert(0, 'Year', df_all_data.index.year)
-                df_all_data.insert(0, 'MarFebYear', np.where(df_all_data['Month'] >= 3, df_all_data['Year'], df_all_data['Year'] - 1))
-                df_all_data.insert(0, 'OctSeptYear', np.where(df_all_data['Month'] <= 9, df_all_data['Year'], df_all_data['Year'] + 1))
-
-                # add scenario name
-                df_all_data.insert(0, 'Scenario', run[0])
-
-                # make a date column
-                df_all_data['Date'] = df_all_data.index
-                date_temp = df_all_data.pop('Date')
-                df_all_data.insert(0, 'Date', date_temp)
+                i_month = df_all_data.index.month
+                i_year = df_all_data.index.year
+                df_new_cols = pd.DataFrame({
+                    'Date': df_all_data.index,
+                    'Scenario': run[0],
+                    'OctSeptYear': np.where(i_month <= 9, i_year, i_year + 1),
+                    'MarFebYear': np.where(i_month >= 3, i_year, i_year - 1),
+                    'Year': i_year,
+                    'Month': i_month,
+                    'JanDecYear': i_year,
+                }, index=df_all_data.index)
+                df_all_data = pd.concat([df_new_cols, df_all_data], axis=1)
 
                 # remove ones that werent found
                 c_field_list_final = {field: c_field_list_final[field] for field in c_field_list_final if field in c_target_ts_list}
@@ -820,5 +812,8 @@ def calculated_fields(df_all, c_field_list, c_default_units):
             # add to field list and units dictionaries
             c_field_list_curr[combined_field] = f'DP {zone} (Calculated Field)'
             c_default_units_curr[combined_field] = ext_unit
+
+    # defragment the frame after many individual column insertions above
+    df_all = df_all.copy()
 
     return df_all, c_field_list_curr, c_default_units_curr
