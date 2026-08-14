@@ -112,6 +112,44 @@ def build_module_widgets(s_module):
         value='Once a set of DSS files have been read in the first time, they are saved to .pkl files that are much quicker to read in later. Note that you cannot pull additional fields when using the pkl files, the DSS files must be re-read in.',
         margin=0)
 
+    # per-module file selection instructions
+    if s_module in c_module_file_instructions:
+        instr = c_module_file_instructions[s_module]
+        file_instructions_title = pn.pane.Markdown(instr['intro_markdown'], disable_anchors=True)
+        file_structure = pn.pane.Str(instr['structure_text'])
+        file_instructions_details = pn.pane.Markdown(instr['details_markdown'], disable_anchors=True)
+
+        o_instructions_card = pn.Card(
+            file_instructions_title,
+            file_structure,
+            file_instructions_details,
+            title=instr['title'],
+            collapsed=False,
+            margin=10,
+            header_background='#003E51',
+            header_color='white',
+            visible=(old_new_sel.value == "New outputs"),
+        )
+
+        #only show instructions if new import (not pickle)
+        def update_instructions_visibility(event, o_card=o_instructions_card, o_column=file_picker_column, l_tracker=file_picker_col_tracker):
+            b_is_new = (event.new == "New outputs")
+            if b_is_new and 'instructions_card' not in l_tracker:
+                i_idx = l_tracker.index(
+                    'instructions_card_placeholder') if 'instructions_card_placeholder' in l_tracker else 0
+                o_column.insert(i_idx, o_card)
+                l_tracker.insert(i_idx, 'instructions_card')
+            elif not b_is_new and 'instructions_card' in l_tracker:
+                i_idx = l_tracker.index('instructions_card')
+                o_column.pop(i_idx)
+                l_tracker.pop(i_idx)
+
+        instructions_watcher = old_new_sel.param.watch(update_instructions_visibility, 'value')
+        c_old_new_watcher.append(instructions_watcher)
+
+        file_picker_column.append(o_instructions_card)
+        file_picker_col_tracker.append('instructions_card')
+
     # Add all widgets to file_picker_column
     file_picker_column.append(pn.Row(file_picker_title, file_picker_title_tooltip))
     file_picker_col_tracker.append("file_picker_title")
@@ -126,27 +164,6 @@ def build_module_widgets(s_module):
                 file_picker_col_tracker=file_picker_col_tracker), ['value'], onlychanged=False)
     old_new_sel.value = "New outputs"
     c_old_new_watcher.append(choice_watcher)
-
-    # per-module file selection instructions
-    if s_module in c_module_file_instructions:
-        instr = c_module_file_instructions[s_module]
-        file_instructions_title = pn.pane.Markdown(instr['intro_markdown'], disable_anchors=True)
-        file_structure = pn.pane.Str(instr['structure_text'])
-        file_instructions_details = pn.pane.Markdown(instr['details_markdown'], disable_anchors=True)
-
-        o_instructions_card = pn.Card(
-            file_instructions_title,
-            file_structure,
-            file_instructions_details,
-            title=instr['title'],
-            collapsed=True,
-            margin=10,
-            header_background='#003E51',
-            header_color='white',
-        )
-
-        file_picker_column.append(o_instructions_card)
-        file_picker_col_tracker.append('instructions_card')
 
     c_module_containers[s_module] = {
         'header': header,
