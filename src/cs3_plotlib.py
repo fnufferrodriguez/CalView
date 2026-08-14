@@ -2132,21 +2132,21 @@ def get_spatial_group(field):
         return f'{prefix}_{suffix}'
     return field.split('_')[0]
 
-def plot_spatial(scenario_list, var_list, unit_choice, df_all,
+def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
                  c_default_units_all, period_choice, s_comparison, spatial_var_choice, c_gdf):
     """
-    Creates spatial plot of annual average values by Area
+    Creates spatial plot of annual average values by Area, one tab per scenario
 
     Parameters
     ----------
     scenario_list: list
         Scenarios we want to plot (only the first is used)
-    var_list: list
-        Unused - kept for interface consistency with other plot functions
     unit_choice: str
         Unused - no CFS/TAF conversion is performed for spatial data
     df_all: DataFrame
         Data to be filtered and plotted
+    df_diffs: DataFrame
+        Data to be filtered and plotted (differences from comparison scenario)
     c_default_units_all: dict
         Unused - kept for interface consistency
     period_choice: object
@@ -2161,7 +2161,7 @@ def plot_spatial(scenario_list, var_list, unit_choice, df_all,
     Returns
     -------
     Panel Object
-        Map and table of annual average data
+        Tabs (one per scenario), each containing an absolute map + diff map
     """
     # look up correct GeoDataFrame for the selected variable
     o_gdf = c_gdf.get(spatial_var_choice)
@@ -2198,25 +2198,72 @@ def plot_spatial(scenario_list, var_list, unit_choice, df_all,
     ls_valid_scens = [s_scen for s_scen in scenario_list if df_scen_has_data.get(s_scen, False)]
     if not ls_valid_scens:
         return pn.pane.Markdown("## No spatial data for the selected scenarios")
-    s_scen_to_use = ls_valid_scens[0]
-
-    df_wide = df_all_plot[df_all_plot.Scenario == s_scen_to_use][['Date', 'OctSeptYear', 'Month'] + ls_matched_var]
-    df_ann_avg_ts = df_wide.groupby(by=['OctSeptYear'])[ls_matched_var].sum()
-    df_ann_avg = pd.DataFrame(df_ann_avg_ts[ls_matched_var].mean()).reset_index()
-    df_ann_avg.columns = ['Variable', 'AnnualAverage']
 
     # derive the merge ID from the variable name (strip the leading prefix segment)
     b_strip_suffix = spatial_var_choice.endswith(('_EXT', '_INT'))
-    df_ann_avg[s_id_col] = ['_'.join(s_var.split("_")[1:]) for s_var in df_ann_avg.Variable]
-    if b_strip_suffix:
-        df_ann_avg[s_id_col] = df_ann_avg[s_id_col].str.rsplit('_', n=1).str[0]
 
-    o_gdf = o_gdf.merge(df_ann_avg, left_on=s_id_col, right_on=s_id_col, how='inner')
-    o_gdf_plot = o_gdf[['geometry', 'AnnualAverage']]
-    o_gdf_plot = o_gdf_plot.dropna(subset=['geometry'])
+    #loop over every valid scenario
+    scenario_tabs = pn.Tabs(tabs_location='left')
 
-    return pn.Column(
-        pn.pane.HoloViews(o_gdf_plot.hvplot(
-            c='AnnualAverage', geo=True, frame_height=800),
-                          center=True),
-        pn.pane.DataFrame(df_ann_avg, max_height=700))
+    for s_scen_to_use in ls_valid_scens:
+        # absolute map for this scenario
+        df_wide = df_all_plot[df_all_plot.Scenario == s_scen_to_use][['Date', 'OctSeptYear', 'Month'] + ls_matched_var]
+        df_ann_avg_ts = df_wide.groupby(by=['OctSeptYear'])[ls_matched_var].sum()
+        df_ann_avg = pd.DataFrame(df_ann_avg_ts[ls_matched_var].mean()).reset_index()
+        df_ann_avg.columns = ['Variable', 'AnnualAverage']
+
+        df_ann_avg[s_id_col] = ['_'.join(s_var.split("_")[1:]) for s_var in df_ann_avg.Variable]
+        if b_strip_suffix:
+            df_ann_avg[s_id_col] = df_ann_avg[s_id_col].str.rsplit('_', n=1).str[0]
+
+        o_gdf_abs = o_gdf.merge(df_ann_avg, left_on=s_id_col, right_on=s_id_col, how='inner')
+        o_gdf_plot = o_gdf_abs[['geometry', 'AnnualAverage']]
+        o_gdf_plot = o_gdf_plot.dropna(subset=['geometry'])
+
+        abs_panel = pn.Column(
+            pn.pane.Markdown(f"### {s_scen_to_use}"),
+            pn.pane.HoloViews(o_gdf_plot.hvplot(c='AnnualAverage', geo=True, frame_height=800), center=True),
+            pn.pane.DataFrame(df_ann_avg, max_height=700)
+        )
+
+        #diff map for this scenario
+        if s_scen_to_use == s_comparison:
+            diff_panel = pn.Column(
+                pn.pane.Markdown(f"### {s_scen_to_use} (Difference from {s_comparison})"),
+                pn.pane.Markdown("*This is the comparison scenario — no difference to display.*",
+                                 height=800)
+            )
+        else:
+            # same merge logic as the absolute map above, run against df_diffs instead of df_all_plot
+            df_wide_diff = df_diffs[df_diffs.Scenario == s_scen_to_use][['Date', 'OctSeptYear', 'Month'] + ls_matched_var]
+
+            if df_wide_diff.empty or df_wide_diff[ls_matched_var].isna().all().all():
+                # NEW: guard for scenarios with no diff data - original didn't need this
+                # since it was only ever called with a scenario known to have data
+                diff_panel = pn.Column(
+                    pn.pane.Markdown(f"### {s_scen_to_use} (Difference from {s_comparison})"),
+                    pn.pane.Markdown("## No data to display", height=800)
+                )
+            else:
+                df_ann_avg_ts_diff = df_wide_diff.groupby(by=['OctSeptYear'])[ls_matched_var].sum()
+                df_ann_avg_diff = pd.DataFrame(df_ann_avg_ts_diff[ls_matched_var].mean()).reset_index()
+                df_ann_avg_diff.columns = ['Variable', 'AnnualAverage']
+
+                df_ann_avg_diff[s_id_col] = ['_'.join(s_var.split("_")[1:]) for s_var in df_ann_avg_diff.Variable]
+                if b_strip_suffix:
+                    df_ann_avg_diff[s_id_col] = df_ann_avg_diff[s_id_col].str.rsplit('_', n=1).str[0]
+
+                o_gdf_diff = o_gdf.merge(df_ann_avg_diff, left_on=s_id_col, right_on=s_id_col, how='inner')
+                o_gdf_plot_diff = o_gdf_diff[['geometry', 'AnnualAverage']]
+                o_gdf_plot_diff = o_gdf_plot_diff.dropna(subset=['geometry'])
+
+                diff_panel = pn.Column(
+                    pn.pane.Markdown(f"### {s_scen_to_use} (Difference from {s_comparison})"),
+                    pn.pane.HoloViews(o_gdf_plot_diff.hvplot(
+                        c='AnnualAverage', geo=True, frame_height=800), center=True),
+                    pn.pane.DataFrame(df_ann_avg_diff, max_height=700)
+                )
+
+        scenario_tabs.append((s_scen_to_use, pn.Row(abs_panel, diff_panel)))
+
+    return pn.Column(pn.pane.Markdown("### Scenarios"), scenario_tabs)

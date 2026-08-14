@@ -918,7 +918,6 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     var_selector_ts = make_var_selector('Variable Selector', all_fields)
     var_selector_grouped = make_var_selector('Variable Selector', all_fields)
     var_selector_monthly = make_var_selector('Variable Selector', all_fields)
-    var_selector_spatial = make_var_selector('Variable Selector', spatial_fields)
 
     # Create other plots
 
@@ -1090,22 +1089,9 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             bound_plot_spatial = pn.bind(
                 plot_spatial,
                 scenario_list=scen_selector,
-                var_list=var_selector_spatial,
                 unit_choice=unit_selector,
                 df_all=df_all_data_combined,
-                c_default_units_all=c_default_units_all,
-                period_choice=period_selector,
-                s_comparison=s_comparison,
-                spatial_var_choice=spatial_var_sel,
-                c_gdf=c_gdf_by_prefix
-            )
-
-            bound_plot_spatial_diff = pn.bind(
-                plot_spatial,
-                scenario_list=scen_selector,
-                var_list=var_selector_spatial,
-                unit_choice=unit_selector,
-                df_all=df_diffs_combined,
+                df_diffs= df_diffs_combined,
                 c_default_units_all=c_default_units_all,
                 period_choice=period_selector,
                 s_comparison=s_comparison,
@@ -1132,19 +1118,6 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
                             s_title="Monthly Pattern",
                             s_stat=monthly_stat_sel)
 
-    if b_have_spatial and b_have_shapefile: # only create spatial plot for hydro
-        spatial_title = pn.bind(create_plot_title,
-                                s_title="Spatial Plot",
-                                s_comparison='',
-                                s_period=period_selector,
-                                s_stat = spatial_var_sel)
-
-        spatial__diff_title = pn.bind(create_plot_title,
-                                s_title="Spatial Plot",
-                                s_comparison=s_comparison,
-                                s_period=period_selector,
-                                s_stat = spatial_var_sel)
-
     # def make_diff_cards(ls_diff, s_plot_type, target_column, c_modules):
     #     for s_mod_m, s_mod_comp_m, bound_plot_m in ls_diff:
     #         mod_title = pn.pane.Markdown(
@@ -1170,7 +1143,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
                 c_modules.get(s_mod_m, s_mod_m),
                 pn.Column(mod_title, bound_plot_m)
             ))
-        target_column.append(diff_tabs)
+        target_column.append(pn.Column(pn.pane.Markdown("### Modules"), diff_tabs))
 
     # Lay out the plots and titles
     # These will hold the plots
@@ -1211,31 +1184,28 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         one_year_plots.append(pn.Row(o_year_selector, o_reservoir_toggle))
         one_year_plots.append(bound_one_year_plots)
 
-
-    if b_have_spatial and b_have_shapefile:  # only create spatial plot for hydro if shapefile present
-        spatial_plots.append(pn.Row(spatial_var_sel, var_selector_spatial))
-        spatial_plots.append(pn.Row(pn.Column(spatial_title, bound_plot_spatial),
-                                    pn.Column(spatial__diff_title, bound_plot_spatial_diff)))
+    if b_have_spatial and b_have_shapefile:
+        spatial_plots.append(spatial_var_sel)
+        spatial_plots.append(bound_plot_spatial)
 
     # create the tabs with each page of plots
     ls_tabs = [
         ('Bar Plot', single_var_plots),
         ('Timeseries', timeseries_plots),
         ('Time-Aggregated', grouped_plots),
-        ('Exceedance', exceedance_plots),
         ('Monthly Pattern', monthly_plots),
+        ('Exceedance', pn.Column(pn.pane.Markdown("### Modules"), exceedance_plots)),
     ]
-
+    if b_have_single_year:
+        ls_tabs.append(('Temperature Plots', one_year_plots))
     if b_have_spatial and b_have_shapefile:
         ls_tabs.append(('Spatial', spatial_plots))
-    if b_have_single_year:
-        ls_tabs.insert(0, ('Temperature Plots', one_year_plots))
 
     metadata_plots = pn.Tabs(tabs_location='left')
     for s_module_name, panel in ls_metadata_panels:
         metadata_plots.append((s_module_name, panel))
 
-    ls_tabs.append(('Metadata', metadata_plots))
+    ls_tabs.append(('Metadata', pn.Column(pn.pane.Markdown("### Modules"), metadata_plots)))
 
     tabs = pn.Tabs(*ls_tabs)
 
