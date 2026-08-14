@@ -23,7 +23,8 @@ c_flag = {'calsim':False,
 c_modules = {
     'calsim':"CalSim Outputs",
     'hydro_out':"CalSim Hydro Outputs",
-    'temperature': "Temperature"
+    'temperature': "Temperature",
+    'salinity': "Salinity"
 }
 c_module_file_instructions = {
     'temperature': {
@@ -217,7 +218,7 @@ def build_module_sections(event=None):
 
     module_column.param.trigger("objects")
 
-mod_selector = module_selector(c_flag)
+mod_selector = module_selector(c_flag, c_modules)
 mod_selector.param.watch(build_module_sections, 'value')
 mod_selector_title = pn.pane.Markdown("""# Select Modules""")
 mod_selector_row = pn.Column(pn.Row(mod_selector_title), pn.Row(mod_selector))

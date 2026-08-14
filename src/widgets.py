@@ -269,7 +269,7 @@ def update_wyt_names(target, event):
                 target.options = c_wyt_names['Default']
                 target.value = c_wyt_names['Default']
     return
-def module_selector(c_flag):
+def module_selector(c_flag, c_modules):
     """
     Widget that allows user selection for module type (ex. calsim hydro inputs and outputs)
 
@@ -277,19 +277,23 @@ def module_selector(c_flag):
     ----------
     c_flag: dict
         Dictionary of module options (keys are module names, values are booleans)
+    c_modules: dict
+        Dictionary mapping module keys to display names
 
     Returns
     -------
     mod_selector: object
         widget
     """
-    # Select the variables
+    #options shown to the user are firendly display names
+    c_display_to_key = {c_modules.get(key, key): key for key in c_flag.keys()}
+
     mod_selector = pn.widgets.MultiChoice(
         name='Module Selector',
-        options=list(c_flag.keys()),
-        value=[k for k, v in c_flag.items() if v],
-        option_limit=len(list(c_flag.keys())),
-        search_option_limit=len(list(c_flag.keys())),
+        options=c_display_to_key,
+        value=[key for key, is_active in c_flag.items() if is_active],
+        option_limit=len(c_display_to_key),
+        search_option_limit=len(c_display_to_key),
         width=400
     )
 
@@ -790,7 +794,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
 
         #create metadata
         o_metadata, df_field_names = create_metadata(scenario_names, c_field_list, c_default_units, s_module)
-        ls_metadata_panels.append(o_metadata)
+        ls_metadata_panels.append((c_modules.get(s_module, s_module), o_metadata))
         ls_field_names_dfs.append(df_field_names)
 
         if df_field_names['Single Year Eligible'].any():
@@ -880,8 +884,8 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
                                             s_comparison=s_comparison,
                                             s_period=period_selector)
 
-        exceedance_sections.append(pn.Column(
-            pn.pane.Markdown(f"## {c_modules.get(s_module, s_module)}"),
+        exceedance_sections.append((
+            c_modules.get(s_module, s_module),
             pn.Row(
                 pn.Column(mod_exceedance_title, mod_var_selector_exceedance, mod_bound_plot_exceedance,
                           mod_exceedance_show_year_check),
@@ -1141,27 +1145,39 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
                                 s_period=period_selector,
                                 s_stat = spatial_var_sel)
 
-    def make_diff_cards(ls_diff, s_plot_type, target_column, c_modules):
+    # def make_diff_cards(ls_diff, s_plot_type, target_column, c_modules):
+    #     for s_mod_m, s_mod_comp_m, bound_plot_m in ls_diff:
+    #         mod_title = pn.pane.Markdown(
+    #             f"# {c_modules.get(s_mod_m, s_mod_m)} {s_plot_type} (Difference from {s_mod_comp_m})")
+    #         target_column.append(pn.Card(
+    #             mod_title,
+    #             bound_plot_m,
+    #             title=f"{c_modules.get(s_mod_m, s_mod_m)} Comparison",
+    #             collapsible=True,
+    #             margin=10,
+    #             header_background='#003E51',
+    #             header_color='white',
+    #             styles={'border': '2px solid #003E51'},
+    #         ))
+    def make_diff_tabs(ls_diff, s_plot_type, target_column, c_modules):
+        if not ls_diff:
+            return
+        diff_tabs = pn.Tabs(tabs_location='left')
         for s_mod_m, s_mod_comp_m, bound_plot_m in ls_diff:
             mod_title = pn.pane.Markdown(
                 f"# {c_modules.get(s_mod_m, s_mod_m)} {s_plot_type} (Difference from {s_mod_comp_m})")
-            target_column.append(pn.Card(
-                mod_title,
-                bound_plot_m,
-                title=f"{c_modules.get(s_mod_m, s_mod_m)} Comparison",
-                collapsible=True,
-                margin=10,
-                header_background='#003E51',
-                header_color='white',
-                styles={'border': '2px solid #003E51'},
+            diff_tabs.append((
+                c_modules.get(s_mod_m, s_mod_m),
+                pn.Column(mod_title, bound_plot_m)
             ))
+        target_column.append(diff_tabs)
 
     # Lay out the plots and titles
     # These will hold the plots
     single_var_plots = pn.Column()
     timeseries_plots = pn.Column()
     grouped_plots = pn.Column()
-    exceedance_plots = pn.Column()
+    exceedance_plots = pn.Tabs(tabs_location='left')
     monthly_plots = pn.Column()
     if b_have_spatial:
         spatial_plots = pn.Column()
@@ -1173,23 +1189,23 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     single_var_widgets = pn.Row(bar_stat_sel, var_selector_bar)
     single_var_plots.append(single_var_widgets)
     single_var_plots.append(pn.Column(single_var_title, bound_single_var_plot))
-    make_diff_cards(c_diff_plots['bar'], "Bar Plot", single_var_plots, c_modules)
+    make_diff_tabs(c_diff_plots['bar'], "Bar Plot", single_var_plots, c_modules)
 
     # Timeseries
     timeseries_plots.append(pn.Column(ts_title, var_selector_ts, bound_plot_ts))
-    make_diff_cards(c_diff_plots['ts'], "Timeseries", timeseries_plots, c_modules)
+    make_diff_tabs(c_diff_plots['ts'], "Timeseries", timeseries_plots, c_modules)
 
     # Time-Aggregated
     grouped_plots.append(pn.Column(grouped_title, var_selector_grouped, bound_plot_grouped))
-    make_diff_cards(c_diff_plots['grouped'], "Time-Aggregated Plot", grouped_plots, c_modules)
+    make_diff_tabs(c_diff_plots['grouped'], "Time-Aggregated Plot", grouped_plots, c_modules)
 
     # Monthly
     monthly_plots.append(pn.Row(monthly_stat_sel))
     monthly_plots.append(pn.Column(monthly_title, var_selector_monthly, bound_monthly_plot))
-    make_diff_cards(c_diff_plots['monthly'], "Monthly Pattern", monthly_plots, c_modules)
+    make_diff_tabs(c_diff_plots['monthly'], "Monthly Pattern", monthly_plots, c_modules)
 
-    for section in exceedance_sections:
-        exceedance_plots.append(section)
+    for s_module_name, section in exceedance_sections:
+        exceedance_plots.append((s_module_name, section))
 
     if b_have_single_year:
         one_year_plots.append(pn.Row(o_year_selector, o_reservoir_toggle))
@@ -1215,7 +1231,11 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     if b_have_single_year:
         ls_tabs.insert(0, ('Temperature Plots', one_year_plots))
 
-    ls_tabs.append(('Metadata', pn.Column(*ls_metadata_panels)))
+    metadata_plots = pn.Tabs(tabs_location='left')
+    for s_module_name, panel in ls_metadata_panels:
+        metadata_plots.append((s_module_name, panel))
+
+    ls_tabs.append(('Metadata', metadata_plots))
 
     tabs = pn.Tabs(*ls_tabs)
 
