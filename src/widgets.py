@@ -1110,7 +1110,11 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
                 period_choice=period_selector,
                 s_comparison=s_comparison,
                 spatial_var_choice=spatial_var_sel,
-                c_gdf=c_gdf_by_prefix
+                c_gdf=c_gdf_by_prefix,
+                li_wyt_selected=wyt_selector,
+                b_wyt_period_year=wyt_period_selector_year,
+                li_wyt_period_months=wyt_period_selector,
+                c_field_list=c_field_list_all
             )
 
     # Titles for each plot, same order as the plots
@@ -1132,20 +1136,10 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
                             s_title="Monthly Pattern",
                             s_stat=monthly_stat_sel)
 
-    # def make_diff_cards(ls_diff, s_plot_type, target_column, c_modules):
-    #     for s_mod_m, s_mod_comp_m, bound_plot_m in ls_diff:
-    #         mod_title = pn.pane.Markdown(
-    #             f"# {c_modules.get(s_mod_m, s_mod_m)} {s_plot_type} (Difference from {s_mod_comp_m})")
-    #         target_column.append(pn.Card(
-    #             mod_title,
-    #             bound_plot_m,
-    #             title=f"{c_modules.get(s_mod_m, s_mod_m)} Comparison",
-    #             collapsible=True,
-    #             margin=10,
-    #             header_background='#003E51',
-    #             header_color='white',
-    #             styles={'border': '2px solid #003E51'},
-    #         ))
+    spatial_title = pn.bind(create_plot_title,
+                            s_title= "Spatial Plot",
+                            s_period=period_selector)
+
     def make_diff_tabs(ls_diff, s_plot_type, target_column, c_modules):
         if not ls_diff:
             return
@@ -1199,6 +1193,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         one_year_plots.append(bound_one_year_plots)
 
     if b_have_spatial and b_have_shapefile:
+        spatial_plots.append(spatial_title)
         spatial_plots.append(spatial_var_sel)
         spatial_plots.append(bound_plot_spatial)
 
