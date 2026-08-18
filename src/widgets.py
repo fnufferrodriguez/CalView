@@ -471,6 +471,8 @@ def create_widgets(scenario_names, c_field_list):
         Scenario selection widget
     unit_selector: obj
         Unit toggle widget
+    temp_unit_selector: obj
+        Temp unit toggle widget
     period_selector: obj
         Time period selecting widget
     wyt_selector: obj
@@ -505,6 +507,15 @@ def create_widgets(scenario_names, c_field_list):
     unit_selector = pn.widgets.RadioButtonGroup(
         name='Units selector',
         options=['TAF', 'CFS'],
+        button_style='outline',
+        button_type='primary',
+        width=200,
+        margin=32
+    )
+    # Toggle for temperature units
+    temp_unit_selector = pn.widgets.RadioButtonGroup(
+        name='Temperature units selector',
+        options=['F', 'C'],
         button_style='outline',
         button_type='primary',
         width=200,
@@ -592,7 +603,7 @@ def create_widgets(scenario_names, c_field_list):
     exceedance_show_year_check_diffs = pn.widgets.Checkbox(name='Show year in table')
 
     # Return all these widgets
-    return scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs, wba_spatial_sel
+    return scen_selector, unit_selector, temp_unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year, bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs, wba_spatial_sel
 
 
 def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
@@ -827,7 +838,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         module_column.pop(0)
 
     # Create the shared widgets
-    (scen_selector, unit_selector, period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year,
+    (scen_selector, unit_selector, temp_unit_selector,period_selector, wyt_selector, wyt_period_selector, wyt_period_selector_year,
       bar_stat_sel, monthly_stat_sel, exceedance_show_year_check, exceedance_show_year_check_diffs, wba_spatial_sel) = create_widgets(scenario_names_combined, c_field_list_all)
     #spatial plotting is always on for hydro (intentially not using wba_spatial_sel
     # to update the visibility when period is changed todo remove?
@@ -836,6 +847,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     header.append(scen_selector)
     header.append(pn.Column(period_selector, pn.Column(wyt_selector, pn.Row(wyt_period_selector_year, wyt_period_selector), visible=False), max_width=300))
     header.append(unit_selector)
+    header.append(temp_unit_selector)
     header.param.trigger("objects")
 
     # Build one exceedance section per module since exceedance plots are module specific
@@ -868,7 +880,8 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             b_wyt_period_year=wyt_period_selector_year,
             li_wyt_period_months=wyt_period_selector,
             b_show_year=mod_exceedance_show_year_check,
-            s_module=s_module
+            s_module=s_module,
+            temp_unit_choice=temp_unit_selector,
         )
 
         mod_bound_plot_diffs_exceedance = pn.bind(
@@ -885,7 +898,8 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             b_wyt_period_year=wyt_period_selector_year,
             li_wyt_period_months=wyt_period_selector,
             b_show_year=mod_exceedance_show_year_check_diffs,
-            s_module=s_module
+            s_module=s_module,
+            temp_unit_choice=temp_unit_selector,
         )
 
         mod_exceedance_title = pn.bind(create_plot_title,
@@ -944,7 +958,8 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         df_all=df_all_data_combined,
         c_default_units=c_default_units_all,
         s_comparison=s_comparison,
-        c_field_list=c_field_list_all
+        c_field_list=c_field_list_all,
+        temp_unit_choice=temp_unit_selector,
     )
 
     # Time aggregated plot
@@ -960,7 +975,8 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         c_field_list=c_field_list_all,
         li_wyt_selected=wyt_selector,
         b_wyt_period_year=wyt_period_selector_year,
-        li_wyt_period_months=wyt_period_selector
+        li_wyt_period_months=wyt_period_selector,
+        temp_unit_choice=temp_unit_selector,
     )
 
     # Bar plot
@@ -977,7 +993,8 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         c_field_list=c_field_list_all,
         li_wyt_selected=wyt_selector,
         b_wyt_period_year=wyt_period_selector_year,
-        li_wyt_period_months=wyt_period_selector
+        li_wyt_period_months=wyt_period_selector,
+        temp_unit_choice=temp_unit_selector,
     )
 
     # Monthly pattern plot
@@ -992,7 +1009,8 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         s_comparison=s_comparison,
         c_field_list=c_field_list_all,
         period_choice=period_selector,
-        li_wyt_selected=wyt_selector
+        li_wyt_selected=wyt_selector,
+        temp_unit_choice=temp_unit_selector,
     )
 
     #module specific comparison plots
@@ -1010,7 +1028,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             scenario_list=scen_selector, var_list=mod_var_ts,
             unit_choice=unit_selector, df_all=df_diffs_m,
             c_default_units=c_units_m, s_comparison=s_mod_comp_m,
-            c_field_list=c_fields_m,
+            c_field_list=c_fields_m, temp_unit_choice=temp_unit_selector
         )))
         #time aggregated differences plots
         c_diff_plots['grouped'].append((s_mod_m, s_mod_comp_m, pn.bind(
@@ -1020,7 +1038,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             c_default_units=c_units_m, period_choice=period_selector,
             s_comparison=s_mod_comp_m, c_field_list=c_fields_m,
             li_wyt_selected=wyt_selector, b_wyt_period_year=wyt_period_selector_year,
-            li_wyt_period_months=wyt_period_selector,
+            li_wyt_period_months=wyt_period_selector, temp_unit_choice=temp_unit_selector
         )))
         #difference bar plot
         c_diff_plots['bar'].append((s_mod_m, s_mod_comp_m, pn.bind(
@@ -1031,7 +1049,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             c_default_units=c_units_m, s_comparison=s_mod_comp_m,
             c_field_list=c_fields_m, li_wyt_selected=wyt_selector,
             b_wyt_period_year=wyt_period_selector_year,
-            li_wyt_period_months=wyt_period_selector,
+            li_wyt_period_months=wyt_period_selector, temp_unit_choice=temp_unit_selector
         )))
         #monthly pattern differences plot
         c_diff_plots['monthly'].append((s_mod_m, s_mod_comp_m, pn.bind(
@@ -1040,7 +1058,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             scenario_list=scen_selector, unit_choice=unit_selector,
             stat_choice=monthly_stat_sel, c_default_units=c_units_m,
             s_comparison=s_mod_comp_m, c_field_list=c_fields_m,
-            period_choice=period_selector, li_wyt_selected=wyt_selector,
+            period_choice=period_selector, li_wyt_selected=wyt_selector, temp_unit_choice=temp_unit_selector
         )))
     #temperature plots
     if b_have_single_year:
@@ -1062,7 +1080,8 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             df_all=df_all_data_combined,
             c_field_list=c_field_list_single_year,
             s_reservoir=o_reservoir_toggle,
-            i_year=o_year_selector
+            i_year=o_year_selector,
+            temp_unit_choice=temp_unit_selector
         )
 
     b_have_spatial = len(spatial_fields) > 0

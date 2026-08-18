@@ -8,7 +8,7 @@ import holoviews as hv
 from bokeh.models import CustomJSTickFormatter
 
 
-def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s_comparison, c_field_list):
+def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s_comparison, c_field_list, temp_unit_choice='F'):
     """
     Creates the timeseries plots
 
@@ -28,6 +28,8 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
         Name of comparison scenario
     c_field_list: dict
         Dictionary of fields and descriptions
+    temp_unit_choice: str
+        Temperature unit selection ('F' or 'C')
 
     Returns
     -------
@@ -118,7 +120,14 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
     # If we found any non cfs/taf variables, we will only use those
     if b_alt_unit:
         var_list_final = ls_alt_vars
-        unit_choice = 'Degrees Fahrenheit' if s_alt_unit == 'DEGF' else s_alt_unit
+        if s_alt_unit == 'DEGF':
+            if temp_unit_choice == 'C':
+                df_all_plot[ls_alt_vars] = (df_all_plot[ls_alt_vars] - 32) * 5 / 9
+                unit_choice = 'Degrees Celsius'
+            else:
+                unit_choice = 'Degrees Fahrenheit'
+        else:
+            unit_choice = s_alt_unit
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
 
@@ -276,7 +285,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
 
 def plot_time_group(scenario_list, var_list, unit_choice, df_all,
                     c_default_units, period_choice, s_comparison,
-                    c_field_list, li_wyt_selected, b_wyt_period_year, li_wyt_period_months):
+                    c_field_list, li_wyt_selected, b_wyt_period_year, li_wyt_period_months, temp_unit_choice='F'):
     """
     Creates time aggregated plot
 
@@ -304,7 +313,8 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         If water year totals have been selected for WYT time period
     li_wyt_period_months: list
         Months selected for WYT time period
-
+    temp_unit_choice: str
+        Temperature unit selection ('F' or 'C')
     Returns
     -------
     Panel Object
@@ -381,7 +391,14 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
     # If we found any non cfs/taf variables, we will only use those
     if b_alt_unit:
         var_list_final = ls_alt_vars
-        unit_choice = 'Degrees Fahrenheit' if s_alt_unit == 'DEGF' else s_alt_unit
+        if s_alt_unit == 'DEGF':
+            if temp_unit_choice == 'C':
+                df_all_plot[ls_alt_vars] = (df_all_plot[ls_alt_vars] - 32) * 5 / 9
+                unit_choice = 'Degrees Celsius'
+            else:
+                unit_choice = 'Degrees Fahrenheit'
+        else:
+            unit_choice = s_alt_unit
         agg_func = 'mean'
 
     if len(var_list_final) == 0:
@@ -715,7 +732,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                          c_default_units, period_choice, s_comparison, c_field_list,
                          li_wyt_selected, b_wyt_period_year, li_wyt_period_months,
-                         b_show_year, s_module):
+                         b_show_year, s_module, temp_unit_choice = 'F'):
     """
     Creates exceedance plots
 
@@ -747,6 +764,8 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         Whether to show the year in the table
     s_module: str
         Module from c_flag
+    temp_unit_choice: str
+        Temperature unit selection ('F' or 'C')
     Returns
     -------
     Panel Object
@@ -826,7 +845,14 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
     # If we found any non cfs/taf variables, we will only use those
     if b_alt_unit:
         var_list_final = ls_alt_vars
-        unit_choice = 'Degrees Fahrenheit' if s_alt_unit == 'DEGF' else s_alt_unit
+        if s_alt_unit == 'DEGF':
+            if temp_unit_choice == 'C':
+                df_all_plot[ls_alt_vars] = (df_all_plot[ls_alt_vars] - 32) * 5 / 9
+                unit_choice = 'Degrees Celsius'
+            else:
+                unit_choice = 'Degrees Fahrenheit'
+        else:
+            unit_choice = s_alt_unit
         agg_func = 'mean'
 
     if len(var_list_final) == 0:
@@ -1218,7 +1244,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
 def plot_bars(df_all, period_choice, var_list, scenario_list,
               unit_choice, stat_choice, c_default_units, s_comparison, c_field_list,
-              li_wyt_selected, b_wyt_period_year, li_wyt_period_months):
+              li_wyt_selected, b_wyt_period_year, li_wyt_period_months, temp_unit_choice = 'F'):
     """
     Creates bar plot
 
@@ -1248,7 +1274,8 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         If water year totals have been selected for WYT time period
     li_wyt_period_months: list
         Months selected for WYT time period
-
+    temp_unit_choice: str
+        Temperature unit selection ('F' or 'C')
     Returns
     -------
     Panel Object
@@ -1326,7 +1353,14 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     # If we found any non cfs/taf variables, we will only use those
     if b_alt_unit:
         var_list_final = ls_alt_vars
-        unit_choice = 'Degrees Fahrenheit' if s_alt_unit == 'DEGF' else s_alt_unit
+        if s_alt_unit == 'DEGF':
+            if temp_unit_choice == 'C':
+                df_all_plot[ls_alt_vars] = (df_all_plot[ls_alt_vars] - 32) * 5 / 9
+                unit_choice = 'Degrees Celsius'
+            else:
+                unit_choice = 'Degrees Fahrenheit'
+        else:
+            unit_choice = s_alt_unit
         agg_func = 'mean'
 
     if len(var_list_final) == 0:
@@ -1808,7 +1842,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
 
 def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
                     stat_choice, c_default_units, s_comparison,
-                    c_field_list, period_choice, li_wyt_selected):
+                    c_field_list, period_choice, li_wyt_selected, temp_unit_choice = 'F'):
     """
     Creates monthly pattern plot
 
@@ -1835,6 +1869,8 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
     period_choice: int or str
         Time period selected
     li_wyt_selected
+    temp_unit_choice: str
+        Temperature unit selection ('F' or 'C')
 
     Returns
     -------
@@ -1913,7 +1949,14 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
     # If we found any non cfs/taf variables, we will only use those
     if b_alt_unit:
         var_list_final = ls_alt_vars
-        unit_choice = 'Degrees Fahrenheit' if s_alt_unit == 'DEGF' else s_alt_unit
+        if s_alt_unit == 'DEGF':
+            if temp_unit_choice == 'C':
+                df_all_plot[ls_alt_vars] = (df_all_plot[ls_alt_vars] - 32) * 5 / 9
+                unit_choice = 'Degrees Celsius'
+            else:
+                unit_choice = 'Degrees Fahrenheit'
+        else:
+            unit_choice = s_alt_unit
 
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
@@ -2094,7 +2137,34 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
                 pn.Column(pn.pane.DataFrame(df_wide, index=False, max_height=500), sizing_mode='stretch_width'),
                 sizing_mode='stretch_width'))
 
-def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year):
+def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year, temp_unit_choice='F'):
+    """
+    Creates the single-year operations, cold water profile, and temperature plots for
+    Shasta or Folsom
+
+    Parameters
+    ----------
+    scenario_list: list
+        Scenarios we want to plot
+    df_all: DataFrame
+        Data to be filtered and plotted
+    c_field_list: dict
+        Dictionary of fields and descriptions
+    s_reservoir: str
+        Which reservoir to plot ('Shasta' or 'Folsom')
+    i_year: int
+        Year to plot
+    temp_unit_choice: str
+        Temperature unit selection ('F' or 'C')
+
+    Returns
+    -------
+    Panel Object
+        A column containing, for each scenario: the operations plot (storage + flow
+        curves) and cold water profile plot side by side, the temperature
+        plots (one per temperature field, all scenarios overlaid), the full
+        data tables for each scenario
+    """
     # check if no scenarios are selected
     if len(scenario_list) == 0:
         return pn.pane.Markdown("## No data to display")
@@ -2146,6 +2216,9 @@ def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year):
     df_temperature.rename(c_field_list, axis='columns', inplace=True)
     ls_temp_fields = [c_field_list[var] for var in ls_temp_fields]
 
+    if temp_unit_choice == 'C':
+        df_temperature[ls_temp_fields] = (df_temperature[ls_temp_fields] - 32) * 5 / 9
+
     # these will hold the plots and dataframes
     o_final_plots = pn.FlexBox()
     o_final_temp_plots = pn.FlexBox()
@@ -2190,7 +2263,7 @@ def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year):
         df_plot_temp = df_temperature[['Date', 'Scenario', temp_field]]
         o_temp_plot = df_plot_temp.hvplot(x='Date',
                                           by='Scenario',
-                                          ylabel='Degrees Fahrenheit',
+                                          ylabel='Degrees Celsius' if temp_unit_choice == 'C' else 'Degrees Fahrenheit',
                                           grid=True,
                                           title=temp_field).opts(min_width=1200, min_height=600, legend_position='bottom', shared_axes=False)
         o_final_temp_plots.append(o_temp_plot)
@@ -2430,10 +2503,10 @@ def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
                 # df_diffs doesn't carry the WYT column, so pull it in from df_all_plot by OctSeptYear
                 df_wyt_lookup = df_all_plot[df_all_plot.Scenario == s_scen_to_use][
                     ['OctSeptYear', s_wyt_col]].drop_duplicates()
-                df_wide_diff = df_diffs_plot[df_diffs.Scenario == s_scen_to_use][ls_diff_cols]
+                df_wide_diff = df_diffs_plot[df_diffs_plot.Scenario == s_scen_to_use][ls_diff_cols]
                 df_wide_diff = df_wide_diff.merge(df_wyt_lookup, on='OctSeptYear', how='left')
             else:
-                df_wide_diff = df_diffs_plot[df_diffs.Scenario == s_scen_to_use][ls_diff_cols]
+                df_wide_diff = df_diffs_plot[df_diffs_plot.Scenario == s_scen_to_use][ls_diff_cols]
 
             if df_wide_diff.empty or df_wide_diff[ls_matched_var].isna().all().all():
                 # NEW: guard for scenarios with no diff data - original didn't need this
