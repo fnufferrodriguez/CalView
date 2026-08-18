@@ -9,6 +9,7 @@ from multiprocessing import Pool
 from os import path
 import warnings
 from collections import Counter
+import geopandas as gpd
 
 def get_trend_fields(s_fields_file):
     """
@@ -56,10 +57,43 @@ def get_trend_fields(s_fields_file):
             c_tr_fields.pop(field)
     return c_tr_fields
 
+def get_shapefile(s_shapefile_name):
+    """
+    Loads a shapefile by name and returns a cleand GeoDataFrame with just ID column and geometry, reprojected to lat/lon for spatial plots.
+    Parameters
+    ----------
+    s_shapefile_name: str (name of the shapefile to load as stored in the field metadata)
+
+    Returns
+    -------
+    o_gdf: GeoDataFrame (ID column + 'geometry')
+    s_id_col: str (name of the ID column, for merging)
+    """
+    c_shapefile_id_cols = {
+        'WBAs': 'WBA_ID',
+        'DemandUnits~2015': 'DU_ID',
+    }
+    c_shapefile_paths = {
+        'WBAs': path.join('WBAs', 'WBAs', 'WBAs.shp'),
+        'DemandUnits~2015':path.join('DUs', 'DemandUnits~2015.shp')
+    }
+    if s_shapefile_name not in c_shapefile_id_cols:
+        print(f"No shapefile mapping for '{s_shapefile_name}'")
+        return None, None
+
+    s_id_col = c_shapefile_id_cols[s_shapefile_name]
+    s_path = path.abspath(path.join(path.dirname(__file__), c_shapefile_paths[s_shapefile_name]))
+
+    if not path.exists(s_path):
+        return None, None
+
+    o_gdf = gpd.read_file(s_path)
+    o_gdf = o_gdf[[s_id_col, 'geometry']].to_crs(4326)
+    return o_gdf, s_id_col
 
 def pickler(append_list, baseline_stack, c_default_units, c_field_list, s_module):
     """
-    Creates pickle files of DSS data
+    Creates a single pickle file of DSS data per module
 
     Parameters
     ----------
@@ -90,7 +124,7 @@ def pickler(append_list, baseline_stack, c_default_units, c_field_list, s_module
     # num_fixed = # of columns that are the same in all cases
     num_fixed = 7
 
-    # columns that shouldn't be subtracted TODO this chunk might be different for hydro
+    # columns that shouldn't be subtracted
     li_wyt_cols = [index+num_fixed for index, colname in enumerate(df_all_data.iloc[:, num_fixed:]) if c_default_units[colname] == 'NONE']
     li_fixed_cols_indices = list(range(0, num_fixed)) + li_wyt_cols
     df_fixed_cols = df_all_data.iloc[:, li_fixed_cols_indices]
@@ -102,28 +136,21 @@ def pickler(append_list, baseline_stack, c_default_units, c_field_list, s_module
     df_diff_numeric = df_all_data_numeric.subtract(df_baseline_numeric)
     df_diffs = pd.concat([df_fixed_cols, df_diff_numeric], axis=1)
 
-    pickled_vals = open(path.abspath(f"values_{s_module}.pkl"), 'wb')
-    pickle.dump(df_all_data, pickled_vals)
-    pickled_vals.close()
+    #bundle everything into one dict
+    c_module_data = {
+        'values': df_all_data,
+        'diffs': df_diffs,
+        'units': c_default_units,
+        'fields': c_field_list
+    }
 
-    pickled_diffs = open(path.abspath(f"diffs_{s_module}.pkl"), 'wb')
-    pickle.dump(df_diffs, pickled_diffs)
-    pickled_diffs.close()
-
-    # Pickle units dictionary
-    pickled_units = open(path.abspath(f"units_{s_module}.pkl"), 'wb')
-    pickle.dump(c_default_units, pickled_units)
-    pickled_units.close()
-
-    #pickle field descriptions
-    pickled_fields = open(path.abspath(f"fields_{s_module}.pkl"), 'wb')
-    pickle.dump(c_field_list, pickled_fields)
-    pickled_fields.close()
-
+    pickled_module = open(path.abspath(f"module_{s_module}.pkl"), "wb")
+    pickle.dump(c_module_data, pickled_module)
+    pickled_module.close()
 
 def load_pickles(ls_files, s_module):
     """
-    Reads in pickle files
+    Reads in the pickle file for a module
 
     Parameters
     ----------
@@ -144,51 +171,25 @@ def load_pickles(ls_files, s_module):
         Dictionary of fields and descriptions
     """
     if not ls_files:
-        ls_files = [path.abspath(f"values_{s_module}.pkl"),
-                    path.abspath(f"diffs_{s_module}.pkl"),
-                    path.abspath(f"units_{s_module}.pkl"),
-                    path.abspath(f"fields_{s_module}.pkl")]
-    s_values_path = ''
-    s_diffs_path = ''
-    s_units_path = ''
-    s_fields_path = ''
-    for file in ls_files:
-        # check for each file type and assign the path name
-        if 'values' in file:
-            s_values_path = file
-        if 'diffs' in file:
-            s_diffs_path = file
-        if 'units' in file:
-            s_units_path = file
-        if 'fields' in file:
-            s_fields_path = file
-    try:
-        load_data = open(s_values_path, 'rb')
-        df_all_data = pickle.load(load_data)
-        load_data.close()
-    except:
-        print("Missing \"values.pkl\". Please run pickler")
+        s_module_path = path.abspath(f"module_{s_module}.pkl")
+    else:
+        #ls_files should contain exactly one file: the module pickle
+        s_module_path = ls_files[0]
 
     try:
-        load_diffs = open(s_diffs_path, 'rb')
-        df_diffs = pickle.load(load_diffs)
-        load_diffs.close()
-    except:
-        print("Missing \"diffs.pkl\". Please run pickler")
-
-    try:
-        load_units = open(s_units_path, 'rb')
-        c_default_units = pickle.load(load_units)
-        load_units.close()
-    except:
-        print("Missing \"units.pkl\". Please run pickler")
-
-    try:
-        load_fields = open(s_fields_path, 'rb')
-        c_field_list = pickle.load(load_fields)
-        load_fields.close()
-    except:
-        print("Missing \"fields.pkl\". Please run pickler")
+        load_module = open(s_module_path, 'rb')
+        c_module_data = pickle.load(load_module)
+        load_module.close()
+        df_all_data = c_module_data['values']
+        df_diffs = c_module_data['diffs']
+        c_default_units = c_module_data['units']
+        c_field_list = c_module_data['fields']
+    except FileNotFoundError:
+        print(f'Missing "module_{s_module}.pkl". Please run pickler')
+        return None, None, None, None
+    except (KeyError, pickle.UnpicklingError) as e:
+        print(f'Pickle file for module "{s_module}" is malformed or from an older version: {e}')
+        return None, None, None, None
 
     return (df_all_data, df_diffs, c_default_units, c_field_list)
 
@@ -221,7 +222,7 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name, s_module):
     fid = HecDss.Open(dss_file)
 
     # getPathnamesDict returns a dict of pathnames.
-    pathNames = fid.search_path() #TODO different in hydro
+    pathNames = fid.search_path()
 
     dfPaths = pd.DataFrame(pathNames, columns=["AllPaths"])
 
@@ -356,20 +357,18 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
                 df_all_data.dropna(how='any', inplace=True)
 
                 # Add in the columns not pulled from the DSS file
-                # Calender year, month, water year, contract year
-                df_all_data.insert(0, 'JanDecYear', df_all_data.index.year)
-                df_all_data.insert(0, 'Month', df_all_data.index.month)
-                df_all_data.insert(0, 'Year', df_all_data.index.year)
-                df_all_data.insert(0, 'MarFebYear', np.where(df_all_data['Month'] >= 3, df_all_data['Year'], df_all_data['Year'] - 1))
-                df_all_data.insert(0, 'OctSeptYear', np.where(df_all_data['Month'] <= 9, df_all_data['Year'], df_all_data['Year'] + 1))
-
-                # add scenario name
-                df_all_data.insert(0, 'Scenario', run[0])
-
-                # make date a column
-                df_all_data['Date'] = df_all_data.index
-                date_temp = df_all_data.pop('Date')
-                df_all_data.insert(0, 'Date', date_temp)
+                i_month = df_all_data.index.month
+                i_year = df_all_data.index.year
+                df_new_cols = pd.DataFrame({
+                    'Date': df_all_data.index,
+                    'Scenario': run[0],
+                    'OctSeptYear': np.where(i_month <= 9, i_year, i_year + 1),
+                    'MarFebYear': np.where(i_month >= 3, i_year, i_year - 1),
+                    'Year': i_year,
+                    'Month': i_month,
+                    'JanDecYear': i_year
+                }, index=df_all_data.index)
+                df_all_data = pd.concat([df_new_cols, df_all_data], axis=1)
 
                 # make sure to remove ones that were not found
                 c_field_list_final = {field: c_field_list_final[field] for field in c_field_list_final if field in c_target_ts_list}
@@ -463,20 +462,18 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
                 df_all_data = pd.concat([df_s_CALSIMII_result, df_a_CALSIMII_result, df_SR_WQ_result, df_AR_WQ_result, df_calsim_SV_result, df_calsim_DV_result], axis=1, join='outer')
 
                 # Add in the columns not pulled from the DSS file
-                # Calender year, month, water year, contract year
-                df_all_data.insert(0, 'JanDecYear', df_all_data.index.year)
-                df_all_data.insert(0, 'Month', df_all_data.index.month)
-                df_all_data.insert(0, 'Year', df_all_data.index.year)
-                df_all_data.insert(0, 'MarFebYear', np.where(df_all_data['Month'] >= 3, df_all_data['Year'], df_all_data['Year'] - 1))
-                df_all_data.insert(0, 'OctSeptYear', np.where(df_all_data['Month'] <= 9, df_all_data['Year'], df_all_data['Year'] + 1))
-
-                # add scenario name
-                df_all_data.insert(0, 'Scenario', run[0])
-
-                # make date a column
-                df_all_data['Date'] = df_all_data.index
-                date_temp = df_all_data.pop('Date')
-                df_all_data.insert(0, 'Date', date_temp)
+                i_month = df_all_data.index.month
+                i_year = df_all_data.index.year
+                df_new_cols = pd.DataFrame({
+                    'Date': df_all_data.index,
+                    'Scenario': run[0],
+                    'OctSeptYear': np.where(i_month <= 9, i_year, i_year + 1),
+                    'MarFebYear': np.where(i_month >= 3, i_year, i_year - 1),
+                    'Year': i_year,
+                    'Month': i_month,
+                    'JanDecYear': i_year,
+                }, index=df_all_data.index)
+                df_all_data = pd.concat([df_new_cols, df_all_data], axis=1)
 
                 # combine all field lists together
                 c_field_list_curr = c_calsim_SV_target_ts_list | c_calsim_DV_target_ts_list | c_SR_WQ_target_ts_list | c_AR_WQ_target_ts_list | c_s_CALSIMII_target_ts_list | c_a_CALSIMII_target_ts_list
@@ -501,20 +498,18 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
                 df_all_data = pd.concat([df_flow_result, df_ec_result], axis=1, join='outer')
 
                 # Add in the columns not pulled from the DSS file
-                # Calender year, month, water year, contract year
-                df_all_data.insert(0, 'JanDecYear', df_all_data.index.year)
-                df_all_data.insert(0, 'Month', df_all_data.index.month)
-                df_all_data.insert(0, 'Year', df_all_data.index.year)
-                df_all_data.insert(0, 'MarFebYear', np.where(df_all_data['Month'] >= 3, df_all_data['Year'], df_all_data['Year'] - 1))
-                df_all_data.insert(0, 'OctSeptYear', np.where(df_all_data['Month'] <= 9, df_all_data['Year'], df_all_data['Year'] + 1))
-
-                # add scenario name
-                df_all_data.insert(0, 'Scenario', run[0])
-
-                # make date a column
-                df_all_data['Date'] = df_all_data.index
-                date_temp = df_all_data.pop('Date')
-                df_all_data.insert(0, 'Date', date_temp)
+                i_month = df_all_data.index.month
+                i_year = df_all_data.index.year
+                df_new_cols = pd.DataFrame({
+                    'Date': df_all_data.index,
+                    'Scenario': run[0],
+                    'OctSeptYear': np.where(i_month <= 9, i_year, i_year + 1),
+                    'MarFebYear': np.where(i_month >= 3, i_year, i_year - 1),
+                    'Year': i_year,
+                    'Month': i_month,
+                    'JanDecYear': i_year,
+                }, index=df_all_data.index)
+                df_all_data = pd.concat([df_new_cols, df_all_data], axis=1)
 
                 # combine all field lists together
                 c_field_list_curr = c_flow_target_ts_list | c_ec_target_ts_list
@@ -528,24 +523,22 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
             elif s_module == 'hydro_out':
                 df_all_data, c_target_ts_list, c_default_units = single_file_pull(run[1], c_field_list, run[0], s_module)
 
-                #assume all monthly data but TODO check this
+                #assume all monthly data
                 df_all_data.dropna(how='any', inplace=True)
 
                 # Add in the columns not pulled from the DSS file
-                # Calender year, month, water year, contract year
-                df_all_data.insert(0, 'JanDecYear', df_all_data.index.year)
-                df_all_data.insert(0, 'Month', df_all_data.index.month)
-                df_all_data.insert(0, 'Year', df_all_data.index.year)
-                df_all_data.insert(0, 'MarFebYear', np.where(df_all_data['Month'] >= 3, df_all_data['Year'], df_all_data['Year'] - 1))
-                df_all_data.insert(0, 'OctSeptYear', np.where(df_all_data['Month'] <= 9, df_all_data['Year'], df_all_data['Year'] + 1))
-
-                # add scenario name
-                df_all_data.insert(0, 'Scenario', run[0])
-
-                # make a date column
-                df_all_data['Date'] = df_all_data.index
-                date_temp = df_all_data.pop('Date')
-                df_all_data.insert(0, 'Date', date_temp)
+                i_month = df_all_data.index.month
+                i_year = df_all_data.index.year
+                df_new_cols = pd.DataFrame({
+                    'Date': df_all_data.index,
+                    'Scenario': run[0],
+                    'OctSeptYear': np.where(i_month <= 9, i_year, i_year + 1),
+                    'MarFebYear': np.where(i_month >= 3, i_year, i_year - 1),
+                    'Year': i_year,
+                    'Month': i_month,
+                    'JanDecYear': i_year,
+                }, index=df_all_data.index)
+                df_all_data = pd.concat([df_new_cols, df_all_data], axis=1)
 
                 # remove ones that werent found
                 c_field_list_final = {field: c_field_list_final[field] for field in c_field_list_final if field in c_target_ts_list}
@@ -819,5 +812,8 @@ def calculated_fields(df_all, c_field_list, c_default_units):
             # add to field list and units dictionaries
             c_field_list_curr[combined_field] = f'DP {zone} (Calculated Field)'
             c_default_units_curr[combined_field] = ext_unit
+
+    # defragment the frame after many individual column insertions above
+    df_all = df_all.copy()
 
     return df_all, c_field_list_curr, c_default_units_curr
