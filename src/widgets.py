@@ -443,14 +443,14 @@ def hide_show_wyt(event, header):
         none
     """
     # make sure that the header has been populated
-    if len(header) > 2:
+    if len(header) > 1:
         # check if a WYT is selected
         if isinstance(event.new, str) and ('WYT' in event.new or 'SHASTABIN_' in event.new):
             # turn on the visibility
-            header[2][1].visible = True
+            header[1][1].visible = True
         else:
             # turn it off
-            header[2][1].visible = False
+            header[1][1].visible = False
     return
 
 
@@ -725,7 +725,7 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
             int_field = f'{field}_INT'
             if ext_field in c_field_list and int_field in c_field_list:
                 c_used_calc_fields[field] = f'{ext_field} + {int_field}'
-                
+
     df_calc_fields = pd.DataFrame.from_dict(c_used_calc_fields, orient='index', columns=['Formula'])
     df_calc_fields.index.name = 'Calculated Field'
 
