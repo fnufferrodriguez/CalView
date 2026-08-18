@@ -664,7 +664,7 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
     c_module_shapefiles = {
         'hydro_out': {'AWO': 'DemandUnits~2015', 'AWR': 'DemandUnits~2015','AWW': 'DemandUnits~2015','TW': 'DemandUnits~2015',
                       'UD': 'DemandUnits~2015', 'WW': 'DemandUnits~2015',  'FR': 'DemandUnits~2015',
-                      'DP': 'WBAs', 'SR': 'WBAs'}
+                      'DP': 'WBAs', 'SR': 'WBAs', 'DP_EXT':'WBAs', 'DP_INT': 'WBAs'}
     }
     if s_module in c_module_shapefiles:
         c_prefix_to_shapefile = c_module_shapefiles[s_module]
@@ -715,6 +715,17 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
 
     # Calculated field formulas
     c_used_calc_fields = {field: c_calcs_for_calculated[field] for field in c_calcs_for_calculated if field in c_field_list.keys()}
+
+    # hydro DP combined fields
+    if s_module == 'hydro_out':
+        for field in c_field_list.keys():
+            if not field.startswith('DP_'):
+                continue
+            ext_field = f'{field}_EXT'
+            int_field = f'{field}_INT'
+            if ext_field in c_field_list and int_field in c_field_list:
+                c_used_calc_fields[field] = f'{ext_field} + {int_field}'
+                
     df_calc_fields = pd.DataFrame.from_dict(c_used_calc_fields, orient='index', columns=['Formula'])
     df_calc_fields.index.name = 'Calculated Field'
 
