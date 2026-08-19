@@ -74,8 +74,8 @@ def get_shapefile(s_shapefile_name):
         'DemandUnits~2015': 'DU_ID',
     }
     c_shapefile_paths = {
-        'WBAs': path.join('WBAs', 'WBAs', 'WBAs.shp'),
-        'DemandUnits~2015':path.join('DUs', 'DemandUnits~2015.shp')
+        'WBAs': path.join('../inputs/WBAs', '../inputs/WBAs', 'WBAs.shp'),
+        'DemandUnits~2015':path.join('../inputs/DUs', 'DemandUnits~2015.shp')
     }
     if s_shapefile_name not in c_shapefile_id_cols:
         print(f"No shapefile mapping for '{s_shapefile_name}'")
