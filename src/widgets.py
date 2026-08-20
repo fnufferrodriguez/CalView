@@ -1155,58 +1155,6 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             temp_unit_choice=temp_unit_selector
         )
 
-    # b_have_spatial = len(spatial_fields) > 0 todo remove this old logic
-    # if b_have_spatial:  # only build spatial plot if spatial fields are present
-    #     # prefixes present in the data (same grouping plot_spatial uses)
-    #     ls_spatial_prefixes = sorted(set(get_spatial_group(s_field) for s_field in spatial_fields))
-    #
-    #     spatial_var_sel = pn.widgets.Select(
-    #         name='Spatial Variable Selector',
-    #         options=ls_spatial_prefixes,
-    #         width=400
-    #     )
-    #
-    #     # map each prefix to its shapefile name, from the metadata Shapefile column
-    #     c_prefix_to_shapefile = {}
-    #     for s_field in spatial_fields:
-    #         s_prefix = get_spatial_group(s_field)
-    #         s_shapefile_name = df_field_names_combined['Shapefile'].get(s_field)
-    #         if not pd.isna(s_shapefile_name):
-    #             c_prefix_to_shapefile[s_prefix] = s_shapefile_name
-    #
-    #     # load each unique shapefile once, then key gdfs by prefix for plot_spatial
-    #     c_gdf_by_name = {}
-    #     c_gdf_by_prefix = {}
-    #     b_have_shapefile = False
-    #     for s_prefix, s_shapefile_name in c_prefix_to_shapefile.items():
-    #         if s_shapefile_name not in c_gdf_by_name:
-    #             o_gdf, s_id_col = get_shapefile(s_shapefile_name)
-    #             c_gdf_by_name[s_shapefile_name] = o_gdf
-    #             if o_gdf is None:
-    #                 print(f"Shapefile not found for '{s_shapefile_name}'")
-    #         o_gdf = c_gdf_by_name[s_shapefile_name]
-    #         if o_gdf is not None:
-    #             c_gdf_by_prefix[s_prefix] = o_gdf
-    #             b_have_shapefile = True
-    #
-    #     if b_have_shapefile:
-    #         bound_plot_spatial = pn.bind(
-    #             plot_spatial,
-    #             scenario_list=scen_selector,
-    #             unit_choice=unit_selector,
-    #             df_all=df_all_data_combined,
-    #             df_diffs= df_diffs_combined,
-    #             c_default_units_all=c_default_units_all,
-    #             period_choice=period_selector,
-    #             s_comparison=s_comparison,
-    #             spatial_var_choice=spatial_var_sel,
-    #             c_gdf=c_gdf_by_prefix,
-    #             li_wyt_selected=wyt_selector,
-    #             b_wyt_period_year=wyt_period_selector_year,
-    #             li_wyt_period_months=wyt_period_selector,
-    #             c_field_list=c_field_list_all
-    #         )
-
     # Titles for each plot, same order as the plots
     ts_title = pn.pane.Markdown("# Timeseries Plot"
                                 )
@@ -1746,7 +1694,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
         if s_module == 'calsim':
             c_tr_fields = get_trend_fields('TR_fields.txt')
         elif s_module == 'hydro_out':
-            c_tr_fields = get_trend_fields('TR_fields_CSH_alternate.txt')
+            c_tr_fields = get_trend_fields('TR_fields_CSH.txt')
 
         # get the overridden fields
         override_TR_fields = field_column[field_col_tracker.index("override_file")].value
