@@ -385,7 +385,7 @@ def update_dss_file_widget(event, s_module, file_picker_column, file_picker_col_
                     max_width=1000,
                     root_directory=os.path.abspath(os.sep)
                 )
-            # new temperature
+            # new temperature, salinity, hydro in
             elif s_module in ('temperature', 'salinity', 'hydro_in'):
                 o_instructions = pn.pane.Markdown("### Select the folders to be read in.")
                 o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move all folders from 'File Browser' section to 'Selected files' section then click 'Continue'")
@@ -395,7 +395,7 @@ def update_dss_file_widget(event, s_module, file_picker_column, file_picker_col_
                     max_width=1000,
                     root_directory=os.path.abspath(os.sep)
                 )
-            #new hydro
+            #new hydro out
             elif s_module == 'hydro_out':
                 o_instructions = pn.pane.Markdown("### Select the DSS files to be read in.")
                 o_instructions_tooltip = pn.widgets.TooltipIcon(value="Move all DSS files from 'File Browser' section to 'Selected files' section then click 'Continue'")
@@ -406,6 +406,7 @@ def update_dss_file_widget(event, s_module, file_picker_column, file_picker_col_
                     max_width=1000,
                     root_directory=os.path.abspath(os.sep)
                 )
+
         # Pickle files
         else:
             o_instructions = pn.pane.Markdown('### <span style="color:red">Select the module pickle file previously created (module_&lt;name&gt;.pkl)</span>')
@@ -652,6 +653,12 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
         run_names = {scen: c_default_units[scen] for scen in scenario_names}
         df_run_names = pd.DataFrame.from_dict(run_names, orient='index')
         df_run_names.index.name = 'Scenario Name'
+
+    elif s_module=='hydro_in':
+        # dictionary of files for each run
+        run_names = {scen: c_default_units[scen] for scen in scenario_names}
+        df_run_names = pd.DataFrame.from_dict(run_names, orient='index')
+        df_run_names.index.name = 'Scenario Name'
     # Title for file names
     o_scen_names_title = pn.pane.Markdown("# Files and names")
 
@@ -671,21 +678,29 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
     else:
         df_field_names['Single Year Eligible'] = False
 
-    # Shapefile assignment per field
-    c_module_shapefiles = {
-        'hydro_out': {'AWO': 'DemandUnits~2015', 'AWR': 'DemandUnits~2015','AWW': 'DemandUnits~2015','TW': 'DemandUnits~2015',
-                      'UD': 'DemandUnits~2015', 'WW': 'DemandUnits~2015',  'FR': 'DemandUnits~2015',
-                      'DP': 'WBAs', 'SR': 'WBAs', 'DP_EXT':'WBAs', 'DP_INT': 'WBAs'}
-    }
-    if s_module in c_module_shapefiles:
-        c_prefix_to_shapefile = c_module_shapefiles[s_module]
-        ls_shapefiles = []
-        for s_field in df_field_names.index:
-            s_prefix = get_spatial_group(s_field)
-            ls_shapefiles.append(c_prefix_to_shapefile.get(s_prefix))
-        df_field_names['Shapefile'] = ls_shapefiles
-    else:
-        df_field_names['Shapefile'] = None
+        # Shapefile assignment per field - must match groups from get_spatial_group
+        c_module_shapefiles = {
+            'hydro_out': {'AWO': 'DemandUnits~2015', 'AWR': 'DemandUnits~2015', 'AWW': 'DemandUnits~2015',
+                          'TW': 'DemandUnits~2015',
+                          'UD': 'DemandUnits~2015', 'WW': 'DemandUnits~2015', 'FR': 'DemandUnits~2015',
+                          'DP': 'WBAs', 'SR': 'WBAs', 'DP_EXT': 'WBAs', 'DP_INT': 'WBAs'},
+            'hydro_in': {'AL ET': 'WBAs', 'AP ET': 'WBAs', 'CO ET': 'WBAs', 'CR ET': 'WBAs', 'CU ET': 'WBAs', 'DB ET': 'WBAs',
+                        'FI ET': 'WBAs', 'GR ET': 'WBAs', 'ID ET': 'WBAs', 'OG ET': 'WBAs', 'OR ET': 'WBAs', 'PA ET': 'WBAs',
+                        'PO ET': 'WBAs', 'RF ET': 'WBAs', 'RI ET': 'WBAs', 'RV ET': 'WBAs', 'SB ET': 'WBAs', 'SF ET': 'WBAs',
+                        'SL ET': 'WBAs', 'SO ET': 'WBAs', 'TH ET': 'WBAs', 'TM ET': 'WBAs', 'TR ET': 'WBAs', 'UR ET': 'WBAs',
+                        'VI ET': 'WBAs', 'WL ET': 'WBAs', 'NV ET': 'WBAs', 'RefETO': 'WBAs'}
+        }
+        if s_module in c_module_shapefiles:
+            c_prefix_to_shapefile = c_module_shapefiles[s_module]
+            ls_shapefiles = []
+            for s_field in df_field_names.index:
+                s_prefix = get_spatial_group(s_field, s_module)
+                ls_shapefiles.append(c_prefix_to_shapefile.get(s_prefix))
+            df_field_names['Shapefile'] = ls_shapefiles
+
+        else:
+            df_field_names['Shapefile'] = None
+
     # Title for fields and descriptions
     o_field_names_title = pn.pane.Markdown("# Fields and descriptions")
 
@@ -929,6 +944,9 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     c_gdf_by_name = {}
     if b_have_spatial:
         for df_all_m, df_diffs_m, c_units_m, c_fields_m, s_mod_comp_m, scen_names_m, s_mod_m in module_results:
+            # remove comparison scen from this module's differences dataframe as all values are zero
+            df_diffs_m = df_diffs_m[df_diffs_m.Scenario != s_mod_comp_m]
+
             #this module's own field metadata, filtered to just this module's row
             df_field_names_m = df_field_names_combined[df_field_names_combined['Module'] == s_mod_m]
             spatial_fields_m = df_field_names_m.loc[df_field_names_m['Shapefile'].notna()].index.tolist()
@@ -936,7 +954,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             if not spatial_fields_m:
                 continue #this module has no spatial fields, skip its tab entirely
 
-            ls_spatial_prefixes_m = sorted(set(get_spatial_group(s_field) for s_field in spatial_fields_m))
+            ls_spatial_prefixes_m = sorted(set(get_spatial_group(s_field, s_mod_m) for s_field in spatial_fields_m))
 
             mod_spatial_var_sel = pn.widgets.Select(
                 name='Spatial Variable Selector',
@@ -947,7 +965,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             #map each prefix (in this module) to its shapefile name
             c_prefix_to_shapefile_m = {}
             for s_field in spatial_fields_m:
-                s_prefix = get_spatial_group(s_field)
+                s_prefix = get_spatial_group(s_field, s_mod_m)
                 s_shapefile_name = df_field_names_m['Shapefile'].get(s_field)
                 if not pd.isna(s_shapefile_name):
                     c_prefix_to_shapefile_m[s_prefix] = s_shapefile_name
@@ -982,7 +1000,8 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
                 li_wyt_selected=wyt_selector,
                 b_wyt_period_year=wyt_period_selector_year,
                 li_wyt_period_months=wyt_period_selector,
-                c_field_list=c_fields_m
+                c_field_list=c_fields_m,
+                s_module=s_mod_m
                 )
 
             mod_spatial_title = pn.bind(create_plot_title,
@@ -1087,6 +1106,8 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     #module specific comparison plots
     c_diff_plots = {'ts':[], 'grouped': [], 'bar': [], 'monthly': []}
     for df_all_m, df_diffs_m, c_units_m, c_fields_m, s_mod_comp_m, scen_names_m, s_mod_m in module_results:
+        # remove comparison scen from this module's differences dataframe as all values are zero
+        df_diffs_m = df_diffs_m[df_diffs_m.Scenario != s_mod_comp_m]
         #filtered var list
         mod_var_ts = pn.bind(filter_vars_to_module, var_selector_ts, c_fields_m)
         mod_var_grouped = pn.bind(filter_vars_to_module, var_selector_grouped, c_fields_m)
@@ -1350,7 +1371,7 @@ def add_run_names_widget(event, s_module, file_picker_col_tracker, run_name_col_
         # add option to override TR_fields.txt
         override_TR_fields_instructions = pn.pane.Markdown("""
         # OPTIONAL override default fields:""", renderer='markdown')
-        if s_module in ('calsim', 'hydro_out'):
+        if s_module in ('calsim', 'hydro_out', 'hydro_in'):
             # if calsim, only need the b part for the fields
             override_TR_fields_instructions_deatils = pn.pane.Markdown("""
     
@@ -1396,7 +1417,7 @@ def add_run_names_widget(event, s_module, file_picker_col_tracker, run_name_col_
         #Also add optional field add text box
         add_field_instructions = pn.pane.Markdown("""
         # OPTIONAL additional fields: """, renderer='markdown')
-        if s_module in ('calsim', 'hydro_out'):
+        if s_module in ('calsim', 'hydro_out', 'hydro_in'): #todo add hydro in to this section
             # if calsim, only need the b part for the fields
             add_field_instructions_details = pn.pane.Markdown("""
     
@@ -1436,7 +1457,7 @@ def add_run_names_widget(event, s_module, file_picker_col_tracker, run_name_col_
         field_column.append(pn.Column(pn.Row(add_field_instructions, add_field_instructions_tooltip), add_field_instructions_details))
         field_col_tracker.append("add_field_instructions")
 
-        if s_module in ('calsim', 'hydro_out'):
+        if s_module in ('calsim', 'hydro_out', 'hydro_in'):
             add_field_text = pn.widgets.TextAreaInput(name='', placeholder='S_FOLSM\tFolsom Storage\nS_SHSTA\tShasta Storage', auto_grow=True, width=500)
         elif s_module in ('temperature', 'salinity'):
             add_field_text = pn.widgets.TextAreaInput(name='', placeholder='Stor-Temp/FOLSOM/STORAGE\tFolsom Storage\nAMERICAN/BLW FOLSOM DAM/FLOW\tAmerican River below Folsom Dam Flow', auto_grow=True, width=500)
@@ -1558,6 +1579,8 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
             c_tr_fields = get_trend_fields('TR_fields_temperature.txt')
         elif s_module == 'salinity':
             c_tr_fields = get_trend_fields('TR_fields_salinity.txt')
+        elif s_module == 'hydro_in':
+            c_tr_fields = get_trend_fields('TR_fields_hydro_in.txt')
 
         # get the overridden fields
         override_TR_fields = field_column[field_col_tracker.index("override_file")].value
@@ -1661,6 +1684,18 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
                             c_dss_paths['ec'] = s_curr_path
                         elif 'FLOW' in s_file or 'flow' in s_file:
                             c_dss_paths['flow'] = s_curr_path
+            elif s_module == 'hydro_in':
+                c_dss_paths = {
+                    "et": '',
+                    "eto": ''
+                }
+                for s_file in os.listdir(files[file_index]):
+                    s_curr_path = os.path.join(folders[file_index], s_file)
+                    if os.path.isfile(s_curr_path):
+                        if 'RefETo' in s_file or 'refeto' in s_file.lower():
+                            c_dss_paths['eto'] = s_curr_path
+                        elif 'ET' in s_file:
+                            c_dss_paths['et'] = s_curr_path
 
             runs.append([run_name_column[run_index][0].value, c_dss_paths])
         print(runs)
@@ -1694,7 +1729,7 @@ def update_run_names(event, file_picker_column, file_picker_col_tracker, run_nam
         if s_module == 'calsim':
             c_tr_fields = get_trend_fields('TR_fields.txt')
         elif s_module == 'hydro_out':
-            c_tr_fields = get_trend_fields('TR_fields_CSH.txt')
+            c_tr_fields = get_trend_fields('TR_fields_CSH_out.txt')
 
         # get the overridden fields
         override_TR_fields = field_column[field_col_tracker.index("override_file")].value

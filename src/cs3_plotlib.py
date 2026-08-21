@@ -1,4 +1,5 @@
 import datetime
+import re
 
 import hvplot.pandas
 import pandas as pd
@@ -2271,31 +2272,38 @@ def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year, t
     return pn.Column(o_final_plots, o_final_temp_plots,o_final_data)
 
 
-def get_spatial_group(field):
+def get_spatial_group(field, s_module):
     """
     Returns the group a field belongs to for spatial plotting purposes.
-    Fields ending in _EXT or _INT get their own group (e.g. 'DP_EXT'),
+    For hydro_out fields ending in _EXT or _INT get their own group (e.g. 'DP_EXT'),
     all other fields group under their first prefix segment (e.g. 'AWO', 'DP').
 
     Parameters
     ----------
     field: str
         Field name
-
+    s_module: str
+        Module name
     Returns
     -------
     str
         Spatial group name
     """
-    if field.endswith(('_EXT', '_INT')):
-        prefix = field.split('_')[0]
-        suffix = field.split('_')[-1]
-        return f'{prefix}_{suffix}'
-    return field.split('_')[0]
+    if s_module == 'hydro_in':
+        parts = field.split('_')
+        if len(parts) == 1:
+            return 'RefETO' #bare field looks like WBA02 from RefETO file
+        return f'{parts[1]} ET' #returns AL ET for WBA02_AL_ET for example
+    if s_module == 'hydro_out':
+        if field.endswith(('_EXT', '_INT')):
+            prefix = field.split('_')[0]
+            suffix = field.split('_')[-1]
+            return f'{prefix}_{suffix}'
+        return field.split('_')[0]
 
 def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
                  c_default_units_all, period_choice, s_comparison, spatial_var_choice, c_gdf,
-                 c_field_list=None, li_wyt_selected=None, b_wyt_period_year=False, li_wyt_period_months=None):
+                 c_field_list=None, li_wyt_selected=None, b_wyt_period_year=False, li_wyt_period_months=None, s_module=None):
     """
     Creates spatial plot of annual average values by Area, one tab per scenario
 
@@ -2348,7 +2356,7 @@ def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
     s_id_col = [s_col for s_col in o_gdf.columns if s_col != 'geometry'][0]
 
     ls_all_var = [s_col for s_col in df_all if s_col not in ['Date', 'Scenario', 'Year', 'Month', 'JanDecYear', 'OctSeptYear', 'MarFebYear']]
-    ls_matched_var = [s_var for s_var in ls_all_var if get_spatial_group(s_var) == spatial_var_choice]
+    ls_matched_var = [s_var for s_var in ls_all_var if get_spatial_group(s_var, s_module) == spatial_var_choice]
 
     if not ls_matched_var:
         return pn.pane.Markdown(f"No matching data fields found for '{spatial_var_choice}'")
@@ -2475,9 +2483,14 @@ def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
                 pn.pane.Markdown("## No data to display", height=400)
             )
         else:
-            df_ann_avg[s_id_col] = ['_'.join(s_var.split("_")[1:]) for s_var in df_ann_avg.Variable]
-            if b_strip_suffix:
-                df_ann_avg[s_id_col] = df_ann_avg[s_id_col].str.rsplit('_', n=1).str[0]
+            if s_module == 'hydro_in':
+                df_ann_avg[s_id_col] = [
+                    re.match(r'^WBA(\d+[A-Z]?)$', s_var.split('_')[0]).group(1) for s_var in df_ann_avg.Variable
+                ]
+            else:
+                df_ann_avg[s_id_col] = ['_'.join(s_var.split("_")[1:]) for s_var in df_ann_avg.Variable]
+                if b_strip_suffix:
+                    df_ann_avg[s_id_col] = df_ann_avg[s_id_col].str.rsplit('_', n=1).str[0]
 
             o_gdf_abs = o_gdf.merge(df_ann_avg, left_on=s_id_col, right_on=s_id_col, how='inner')
             o_gdf_plot = o_gdf_abs[['geometry', s_val_col]]
@@ -2573,10 +2586,17 @@ def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
                         pn.pane.Markdown("## No data to display", height=800)
                     )
                 else:
-                    df_ann_avg_diff[s_id_col] = ['_'.join(s_var.split("_")[1:]) for s_var in
-                                                 df_ann_avg_diff.Variable]
-                    if b_strip_suffix:
-                        df_ann_avg_diff[s_id_col] = df_ann_avg_diff[s_id_col].str.rsplit('_', n=1).str[0]
+                    if s_module == 'hydro_in':
+                        #capture wba number
+                        df_ann_avg_diff[s_id_col] = [
+                            re.match(r'^WBA(\d+[A-Z]?)$', s_var.split('_')[0]).group(1) for s_var in
+                            df_ann_avg_diff.Variable
+                        ]
+                    else:
+                        df_ann_avg_diff[s_id_col] = ['_'.join(s_var.split("_")[1:]) for s_var in
+                                                     df_ann_avg_diff.Variable]
+                        if b_strip_suffix:
+                            df_ann_avg_diff[s_id_col] = df_ann_avg_diff[s_id_col].str.rsplit('_', n=1).str[0]
 
                     o_gdf_diff = o_gdf.merge(df_ann_avg_diff, left_on=s_id_col, right_on=s_id_col, how='inner')
                     o_gdf_plot_diff = o_gdf_diff[['geometry', s_val_col]]

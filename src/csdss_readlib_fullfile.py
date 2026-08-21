@@ -235,6 +235,11 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name, s_module):
             dfPaths['AllPaths'].str.split("/", expand=True)
     dfPaths = dfPaths.drop(columns=['AllPaths', 'blank1', 'blank2'])
 
+    # strip spaces from B for hydro_in files
+    if s_module == 'hydro_in':
+        dfPaths['B_original'] = dfPaths['B']
+        dfPaths['B'] = dfPaths['B'].str.replace(' ', '', regex=False)
+
     dfPaths = dfPaths.sort_values(by=['B', 'D'])
     dfPaths = dfPaths.drop_duplicates(subset=['B', 'C'])
     dfPaths = dfPaths.reset_index()
@@ -274,6 +279,14 @@ def single_file_pull(dss_file, c_target_ts_list, scenario_name, s_module):
                 a_part = dfPaths[dfPaths['B'] == b_part]['A'].iloc[0]
                 f_part = dfPaths[dfPaths['B'] == b_part]['F'].iloc[0]
                 target_pathName = f'/{a_part}/{b_part.upper()}/{c_part}//1MON/{f_part}/'
+            elif s_module == 'hydro_in':
+                c_part = dfPaths[dfPaths['B'] == b_part]['C'].iloc[0]
+                a_part = dfPaths[dfPaths['B'] == b_part]['A'].iloc[0]
+                e_part = dfPaths[dfPaths['B'] == b_part]['E'].iloc[0]
+                f_part = dfPaths[dfPaths['B'] == b_part]['F'].iloc[0]
+                b_part_original = dfPaths[dfPaths['B'] == b_part]['B_original'].iloc[0]
+                target_pathName = f'/{a_part}/{b_part_original}/{c_part}//{e_part}/{f_part}/'
+
 
             # pull current path
             working_ts = fid.read_ts(target_pathName, trim_missing=True)
@@ -335,8 +348,8 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
 
     """
     results = {}
-    c_default_units_all = {}
-    if s_module in ('calsim', 'salinity', 'hydro_out'):
+    c_default_units_all = {} #todo add hydro in to this
+    if s_module in ('calsim', 'salinity', 'hydro_out', 'hydro_in'):
         c_field_list_final = c_field_list.copy()
     elif s_module == 'temperature':
         c_calsim_fields = {field: c_field_list[field] for field in c_field_list if field.split('/')[0] == 'CALSIM'}
@@ -520,7 +533,7 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
                 c_default_units_all.update(c_ec_default_units)
 
                 results[run[0]] = df_all_data
-            elif s_module == 'hydro_out':
+            elif s_module == 'hydro_out': #todo add hydro in to this
                 df_all_data, c_target_ts_list, c_default_units = single_file_pull(run[1], c_field_list, run[0], s_module)
 
                 #assume all monthly data
@@ -546,6 +559,39 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
                 #add to dictionary to store
                 c_default_units_all.update(c_default_units)
                 results[run[0]] = df_all_data
+            elif s_module == 'hydro_in': #only ET and Ref ETo files right now
+                df_et_result, c_et_target_ts_list, c_et_default_units = single_file_pull(run[1]['et'], c_field_list,
+                                                                                         run[0], s_module)
+                df_eto_result, c_eto_target_ts_list, c_eto_default_units = single_file_pull(run[1]['eto'], c_field_list,
+                                                                                            run[0], s_module)
+
+                # Combine the data from all the DSS files
+                # Keep everything from one data frame but other fields from the rest, so we only have one copy of dat/Year/Month/etc.
+                df_all_data = pd.concat([df_et_result, df_eto_result], axis=1, join='outer')
+
+                # Add in the columns not pulled from the DSS file
+                i_month = df_all_data.index.month
+                i_year = df_all_data.index.year
+                df_new_cols = pd.DataFrame({
+                    'Date': df_all_data.index,
+                    'Scenario': run[0],
+                    'OctSeptYear': np.where(i_month <= 9, i_year, i_year + 1),
+                    'MarFebYear': np.where(i_month >= 3, i_year, i_year - 1),
+                    'Year': i_year,
+                    'Month': i_month,
+                    'JanDecYear': i_year,
+                }, index=df_all_data.index)
+                df_all_data = pd.concat([df_new_cols, df_all_data], axis=1)
+
+                # combine all field lists together
+                c_field_list_curr = c_et_target_ts_list | c_eto_target_ts_list
+                c_field_list_final.update(c_field_list_curr)
+
+                # add units into dictionary to store
+                c_default_units_all.update(c_et_default_units)
+                c_default_units_all.update(c_eto_default_units)
+
+                results[run[0]] = df_all_data
     # else:
     #     # create pool
     #     pool = Pool()
@@ -568,7 +614,7 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
     #     pool.join()
 
     # since the set up of the temperature version allowed for fields to be in one run but not another, we need to remove any that are like this
-    if s_module in ('temperature', 'salinity'): #todo might need to add hydro to this
+    if s_module in ('temperature', 'salinity', 'hydro_in'):
 
         # count the number of times each column is used
         ls_all_fields = np.concatenate([df.columns for df in results.values()], axis=None)
@@ -612,6 +658,8 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
         elif s_module == 'temperature':
             c_default_units_all[run_name] = file_name
         elif s_module == 'salinity':
+            c_default_units_all[run_name] = file_name
+        elif s_module == 'hydro_in':
             c_default_units_all[run_name] = file_name
         elif s_module == 'hydro_out':
             c_default_units_all[run_name] = path.basename(file_name)

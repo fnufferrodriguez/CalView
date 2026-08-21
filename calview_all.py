@@ -18,11 +18,13 @@ hv.opts.defaults(hv.opts.Scatter(color=hv.Cycle(['#003E51', '#007396', '#C69214'
 # Flag for hydro version
 c_flag = {'calsim':False,
           'hydro_out':True,
+          'hydro_in':False,
           'temperature':False,
           'salinity':False}
 c_modules = {
     'calsim':"CalSim Outputs",
     'hydro_out':"CalSim Hydro Outputs",
+    'hydro_in':"CalSim Hydro Inputs",
     'temperature': "Temperature",
     'salinity': "Salinity"
 }
@@ -42,6 +44,7 @@ Alt2v1/\n├─── CS3_Alt2v1_SV.dss\n├─── CS3_Alt2v1_DV_dp.dss\n\
 CalSim DSS files can be named anything as long as one has 'SV' and one has 'DV' in the name.
 
 There must be folders named *american* and *sacramento* with the exact files shown."""
+
     },
     'salinity': {
         'title': 'New Salinity File Selection Instructions',
@@ -52,6 +55,15 @@ Alt2v1/\n├─── CS3_Alt2v1_EC_p.dss\n└─── CS3_Alt2v1_FLOW_p.dss\n\
         'details_markdown': """## Select the base folders. 
 ## For this example, select the *NAA* and *Alt2v1* folders.
 """
+
+    },
+    'hydro_in': {
+        'title': 'New CalSim Hydro Input File Selection Instructions',
+        'structure_text': """Folder/\n├─── CS3_ET.dss\n└─── CS3_RefETo.dss
+        """,
+        'intro_markdown': "## Required file structure: ",
+        'details_markdown': """## Select the base folder. 
+## For this example, select the *Folder* folder."""
     }
 }
 # path for the compiled executable to find logo
