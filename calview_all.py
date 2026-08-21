@@ -221,6 +221,8 @@ def build_module_sections(event=None):
     module_column.append(pn.pane.Markdown("## Run type"))
     module_column.append(old_new_sel)
 
+    if all(value == False for value in c_flag.values()):
+        module_column.append(pn.pane.Markdown("""### No module selected """))
     for s_module, is_active in c_flag.items():
         if not is_active:
             continue

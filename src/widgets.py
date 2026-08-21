@@ -208,7 +208,7 @@ def build_naming_stage(event, c_module_containers, c_flag, module_column, c_modu
             # Enter a run name for each file (e.g. Baseline, Alt1, etc.). 
             """, renderer='markdown')
         run_name_instructions_comparison = pn.pane.Markdown("""                
-            ## <span style="color:red">One run must be marked for comparison.</span>
+            ## <span style="color:red">One run must be marked for comparison per module.</span>
             """, renderer='markdown')
         run_name_instructions_tooltip = pn.widgets.TooltipIcon(
             value='A plot of differences will be created based off this scenario.')
@@ -868,6 +868,8 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     # Build one exceedance section per module since exceedance plots are module specific
     exceedance_sections = []
     for df_all_data, df_diffs, c_default_units, c_field_list, s_mod_comparison, scenario_names, s_module in module_results:
+        #strip this module's own comparison scenario out of its own diffs scen
+        df_diffs_m_filtered = df_diffs[df_diffs.Scenario != s_mod_comparison]
         mod_description_to_field = {desc: field for field, desc in c_field_list.items()}
         mod_var_selector_exceedance = pn.widgets.MultiChoice(
             name='Variable Selector',
@@ -887,10 +889,10 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             var_list=mod_var_selector_exceedance,
             unit_choice=unit_selector,
             df_all=df_all_data_combined,
-            c_default_units=c_default_units_all,
+            c_default_units=c_default_units,
             period_choice=period_selector,
-            s_comparison=s_comparison,
-            c_field_list=c_field_list_all,
+            s_comparison=s_mod_comparison,
+            c_field_list=c_field_list,
             li_wyt_selected=wyt_selector,
             b_wyt_period_year=wyt_period_selector_year,
             li_wyt_period_months=wyt_period_selector,
@@ -904,11 +906,11 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             scenario_list=scen_selector,
             var_list=mod_var_selector_exceedance,
             unit_choice=unit_selector,
-            df_all=df_diffs_combined,
-            c_default_units=c_default_units_all,
+            df_all=df_diffs_m_filtered,
+            c_default_units=c_default_units,
             period_choice=period_selector,
-            s_comparison=s_comparison,
-            c_field_list=c_field_list_all,
+            s_comparison=s_mod_comparison,
+            c_field_list=c_field_list,
             li_wyt_selected=wyt_selector,
             b_wyt_period_year=wyt_period_selector_year,
             li_wyt_period_months=wyt_period_selector,
@@ -924,13 +926,13 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
 
         mod_exceedance_diff_title = pn.bind(create_plot_title,
                                             s_title=c_modules.get(s_module, s_module) + " Exceedance Plot",
-                                            s_comparison=s_comparison,
+                                            s_comparison=s_mod_comparison,
                                             s_period=period_selector)
 
         exceedance_sections.append((
             c_modules.get(s_module, s_module),
             pn.Row(
-                pn.Column(mod_exceedance_title, mod_var_selector_exceedance, mod_bound_plot_exceedance,
+                pn.Column(mod_var_selector_exceedance, mod_exceedance_title, mod_bound_plot_exceedance,
                           mod_exceedance_show_year_check),
                 pn.Column(mod_exceedance_diff_title, mod_bound_plot_diffs_exceedance,
                           mod_exceedance_show_year_check_diffs)
