@@ -2354,9 +2354,6 @@ def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
 
     #determine ID column name based on variable
     s_id_col = [s_col for s_col in o_gdf.columns if s_col != 'geometry'][0]
-    #todo remove
-    print(f"DEBUG plot_spatial: o_gdf columns={list(o_gdf.columns)}")
-    print(f"DEBUG plot_spatial: o_gdf[{s_id_col!r}] sample values={o_gdf[s_id_col].unique()[:15].tolist()}")
 
     ls_all_var = [s_col for s_col in df_all if s_col not in ['Date', 'Scenario', 'Year', 'Month', 'JanDecYear', 'OctSeptYear', 'MarFebYear']]
     ls_matched_var = [s_var for s_var in ls_all_var if get_spatial_group(s_var, s_module) == spatial_var_choice]
@@ -2494,7 +2491,6 @@ def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
                 df_ann_avg[s_id_col] = ['_'.join(s_var.split("_")[1:]) for s_var in df_ann_avg.Variable]
                 if b_strip_suffix:
                     df_ann_avg[s_id_col] = df_ann_avg[s_id_col].str.rsplit('_', n=1).str[0]
-            print(f"DEBUG plot_spatial: extracted IDs from data={df_ann_avg[s_id_col].unique().tolist()}") #todo remove
 
             o_gdf_abs = o_gdf.merge(df_ann_avg, left_on=s_id_col, right_on=s_id_col, how='inner')
             o_gdf_plot = o_gdf_abs[['geometry', s_val_col]]

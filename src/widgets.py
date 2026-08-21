@@ -944,6 +944,9 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     c_gdf_by_name = {}
     if b_have_spatial:
         for df_all_m, df_diffs_m, c_units_m, c_fields_m, s_mod_comp_m, scen_names_m, s_mod_m in module_results:
+            # remove comparison scen from this module's differences dataframe as all values are zero
+            df_diffs_m = df_diffs_m[df_diffs_m.Scenario != s_mod_comp_m]
+
             #this module's own field metadata, filtered to just this module's row
             df_field_names_m = df_field_names_combined[df_field_names_combined['Module'] == s_mod_m]
             spatial_fields_m = df_field_names_m.loc[df_field_names_m['Shapefile'].notna()].index.tolist()
@@ -1103,6 +1106,8 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     #module specific comparison plots
     c_diff_plots = {'ts':[], 'grouped': [], 'bar': [], 'monthly': []}
     for df_all_m, df_diffs_m, c_units_m, c_fields_m, s_mod_comp_m, scen_names_m, s_mod_m in module_results:
+        # remove comparison scen from this module's differences dataframe as all values are zero
+        df_diffs_m = df_diffs_m[df_diffs_m.Scenario != s_mod_comp_m]
         #filtered var list
         mod_var_ts = pn.bind(filter_vars_to_module, var_selector_ts, c_fields_m)
         mod_var_grouped = pn.bind(filter_vars_to_module, var_selector_grouped, c_fields_m)
