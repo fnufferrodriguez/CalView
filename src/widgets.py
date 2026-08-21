@@ -887,7 +887,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             scenario_list=scen_selector,
             var_list=mod_var_selector_exceedance,
             unit_choice=unit_selector,
-            df_all=df_all_data_combined,
+            df_all=df_all_data,
             c_default_units=c_default_units,
             period_choice=period_selector,
             s_comparison=s_mod_comparison,

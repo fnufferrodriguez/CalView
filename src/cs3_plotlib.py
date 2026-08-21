@@ -56,6 +56,9 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, l
     if not any(comp in df_all_plot.Scenario.unique() for comp in ls_comparison):
         scenario_list = [scen for scen in scenario_list if scen not in ls_comparison]
         b_diffs_flag = True
+    # restrict scenario_list to only the scenarios this module's data actually contains
+    ls_module_scenarios = set(df_all_plot.Scenario.unique())
+    scenario_list = [scen for scen in scenario_list if scen in ls_module_scenarios]
 
     # check if no scenarios are selected
     if len(scenario_list) == 0:
@@ -339,6 +342,9 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
     if not any(comp in df_all_plot.Scenario.unique() for comp in ls_comparison):
         scenario_list = [scen for scen in scenario_list if scen not in ls_comparison]
         b_diffs_flag = True
+    # restrict scenario_list to only the scenarios this module's data actually contains
+    ls_module_scenarios = set(df_all_plot.Scenario.unique())
+    scenario_list = [scen for scen in scenario_list if scen in ls_module_scenarios]
 
     # check if any scenarios are selected
     if len(scenario_list) == 0:
@@ -793,6 +799,9 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         scenario_list = [scen for scen in scenario_list if scen != s_comparison]
         b_diffs_flag = True
 
+    # restrict scenario_list to only the scenarios this module's data actually contains
+    ls_module_scenarios = set(df_all_plot.Scenario.unique())
+    scenario_list = [scen for scen in scenario_list if scen in ls_module_scenarios]
     # check if any scenarios are selected
     if len(scenario_list) == 0:
         return pn.pane.Markdown("## No data to display")
@@ -1298,6 +1307,10 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     if not any(comp in df_all_plot.Scenario.unique() for comp in ls_comparison):
         scenario_list = [scen for scen in scenario_list if scen not in ls_comparison]
         b_diffs_flag = True
+
+    # restrict scenario_list to only the scenarios this module's data actually contains
+    ls_module_scenarios = set(df_all_plot.Scenario.unique())
+    scenario_list = [scen for scen in scenario_list if scen in ls_module_scenarios]
 
     # check if no scenarios are selected
     if len(scenario_list) == 0:
@@ -1892,6 +1905,9 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
     if not any(comp in df_all_plot.Scenario.unique() for comp in ls_comparison):
         scenario_list = [scen for scen in scenario_list if scen not in ls_comparison]
         b_diffs_flag = True
+    # restrict scenario_list to only the scenarios this module's data actually contains
+    ls_module_scenarios = set(df_all_plot.Scenario.unique())
+    scenario_list = [scen for scen in scenario_list if scen in ls_module_scenarios]
 
     # check if no scenarios are selected
     if len(scenario_list) == 0:
