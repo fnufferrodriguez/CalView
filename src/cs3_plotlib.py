@@ -8,7 +8,7 @@ import holoviews as hv
 from bokeh.models import CustomJSTickFormatter
 
 
-def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s_comparison, c_field_list):
+def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s_comparison, c_field_list, temp_unit_choice='F'):
     """
     Creates the timeseries plots
 
@@ -28,6 +28,8 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
         Name of comparison scenario
     c_field_list: dict
         Dictionary of fields and descriptions
+    temp_unit_choice: str
+        Temperature unit selection ('F' or 'C')
 
     Returns
     -------
@@ -118,7 +120,14 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
     # If we found any non cfs/taf variables, we will only use those
     if b_alt_unit:
         var_list_final = ls_alt_vars
-        unit_choice = 'Degrees Fahrenheit' if s_alt_unit == 'DEGF' else s_alt_unit
+        if s_alt_unit == 'DEGF':
+            if temp_unit_choice == 'C':
+                df_all_plot[ls_alt_vars] = (df_all_plot[ls_alt_vars] - 32) * 5 / 9
+                unit_choice = 'Degrees Celsius'
+            else:
+                unit_choice = 'Degrees Fahrenheit'
+        else:
+            unit_choice = s_alt_unit
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
 
@@ -276,7 +285,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
 
 def plot_time_group(scenario_list, var_list, unit_choice, df_all,
                     c_default_units, period_choice, s_comparison,
-                    c_field_list, li_wyt_selected, b_wyt_period_year, li_wyt_period_months):
+                    c_field_list, li_wyt_selected, b_wyt_period_year, li_wyt_period_months, temp_unit_choice='F'):
     """
     Creates time aggregated plot
 
@@ -304,7 +313,8 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         If water year totals have been selected for WYT time period
     li_wyt_period_months: list
         Months selected for WYT time period
-
+    temp_unit_choice: str
+        Temperature unit selection ('F' or 'C')
     Returns
     -------
     Panel Object
@@ -381,7 +391,14 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
     # If we found any non cfs/taf variables, we will only use those
     if b_alt_unit:
         var_list_final = ls_alt_vars
-        unit_choice = 'Degrees Fahrenheit' if s_alt_unit == 'DEGF' else s_alt_unit
+        if s_alt_unit == 'DEGF':
+            if temp_unit_choice == 'C':
+                df_all_plot[ls_alt_vars] = (df_all_plot[ls_alt_vars] - 32) * 5 / 9
+                unit_choice = 'Degrees Celsius'
+            else:
+                unit_choice = 'Degrees Fahrenheit'
+        else:
+            unit_choice = s_alt_unit
         agg_func = 'mean'
 
     if len(var_list_final) == 0:
@@ -715,7 +732,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                          c_default_units, period_choice, s_comparison, c_field_list,
                          li_wyt_selected, b_wyt_period_year, li_wyt_period_months,
-                         b_show_year, s_module):
+                         b_show_year, s_module, temp_unit_choice = 'F'):
     """
     Creates exceedance plots
 
@@ -747,6 +764,8 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         Whether to show the year in the table
     s_module: str
         Module from c_flag
+    temp_unit_choice: str
+        Temperature unit selection ('F' or 'C')
     Returns
     -------
     Panel Object
@@ -826,7 +845,14 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
     # If we found any non cfs/taf variables, we will only use those
     if b_alt_unit:
         var_list_final = ls_alt_vars
-        unit_choice = 'Degrees Fahrenheit' if s_alt_unit == 'DEGF' else s_alt_unit
+        if s_alt_unit == 'DEGF':
+            if temp_unit_choice == 'C':
+                df_all_plot[ls_alt_vars] = (df_all_plot[ls_alt_vars] - 32) * 5 / 9
+                unit_choice = 'Degrees Celsius'
+            else:
+                unit_choice = 'Degrees Fahrenheit'
+        else:
+            unit_choice = s_alt_unit
         agg_func = 'mean'
 
     if len(var_list_final) == 0:
@@ -1218,7 +1244,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
 def plot_bars(df_all, period_choice, var_list, scenario_list,
               unit_choice, stat_choice, c_default_units, s_comparison, c_field_list,
-              li_wyt_selected, b_wyt_period_year, li_wyt_period_months):
+              li_wyt_selected, b_wyt_period_year, li_wyt_period_months, temp_unit_choice = 'F'):
     """
     Creates bar plot
 
@@ -1248,7 +1274,8 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         If water year totals have been selected for WYT time period
     li_wyt_period_months: list
         Months selected for WYT time period
-
+    temp_unit_choice: str
+        Temperature unit selection ('F' or 'C')
     Returns
     -------
     Panel Object
@@ -1326,7 +1353,14 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
     # If we found any non cfs/taf variables, we will only use those
     if b_alt_unit:
         var_list_final = ls_alt_vars
-        unit_choice = 'Degrees Fahrenheit' if s_alt_unit == 'DEGF' else s_alt_unit
+        if s_alt_unit == 'DEGF':
+            if temp_unit_choice == 'C':
+                df_all_plot[ls_alt_vars] = (df_all_plot[ls_alt_vars] - 32) * 5 / 9
+                unit_choice = 'Degrees Celsius'
+            else:
+                unit_choice = 'Degrees Fahrenheit'
+        else:
+            unit_choice = s_alt_unit
         agg_func = 'mean'
 
     if len(var_list_final) == 0:
@@ -1808,7 +1842,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
 
 def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
                     stat_choice, c_default_units, s_comparison,
-                    c_field_list, period_choice, li_wyt_selected):
+                    c_field_list, period_choice, li_wyt_selected, temp_unit_choice = 'F'):
     """
     Creates monthly pattern plot
 
@@ -1835,6 +1869,8 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
     period_choice: int or str
         Time period selected
     li_wyt_selected
+    temp_unit_choice: str
+        Temperature unit selection ('F' or 'C')
 
     Returns
     -------
@@ -1913,7 +1949,14 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
     # If we found any non cfs/taf variables, we will only use those
     if b_alt_unit:
         var_list_final = ls_alt_vars
-        unit_choice = 'Degrees Fahrenheit' if s_alt_unit == 'DEGF' else s_alt_unit
+        if s_alt_unit == 'DEGF':
+            if temp_unit_choice == 'C':
+                df_all_plot[ls_alt_vars] = (df_all_plot[ls_alt_vars] - 32) * 5 / 9
+                unit_choice = 'Degrees Celsius'
+            else:
+                unit_choice = 'Degrees Fahrenheit'
+        else:
+            unit_choice = s_alt_unit
 
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
@@ -2094,7 +2137,34 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
                 pn.Column(pn.pane.DataFrame(df_wide, index=False, max_height=500), sizing_mode='stretch_width'),
                 sizing_mode='stretch_width'))
 
-def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year):
+def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year, temp_unit_choice='F'):
+    """
+    Creates the single-year operations, cold water profile, and temperature plots for
+    Shasta or Folsom
+
+    Parameters
+    ----------
+    scenario_list: list
+        Scenarios we want to plot
+    df_all: DataFrame
+        Data to be filtered and plotted
+    c_field_list: dict
+        Dictionary of fields and descriptions
+    s_reservoir: str
+        Which reservoir to plot ('Shasta' or 'Folsom')
+    i_year: int
+        Year to plot
+    temp_unit_choice: str
+        Temperature unit selection ('F' or 'C')
+
+    Returns
+    -------
+    Panel Object
+        A column containing, for each scenario: the operations plot (storage + flow
+        curves) and cold water profile plot side by side, the temperature
+        plots (one per temperature field, all scenarios overlaid), the full
+        data tables for each scenario
+    """
     # check if no scenarios are selected
     if len(scenario_list) == 0:
         return pn.pane.Markdown("## No data to display")
@@ -2146,6 +2216,9 @@ def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year):
     df_temperature.rename(c_field_list, axis='columns', inplace=True)
     ls_temp_fields = [c_field_list[var] for var in ls_temp_fields]
 
+    if temp_unit_choice == 'C':
+        df_temperature[ls_temp_fields] = (df_temperature[ls_temp_fields] - 32) * 5 / 9
+
     # these will hold the plots and dataframes
     o_final_plots = pn.FlexBox()
     o_final_temp_plots = pn.FlexBox()
@@ -2190,7 +2263,7 @@ def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year):
         df_plot_temp = df_temperature[['Date', 'Scenario', temp_field]]
         o_temp_plot = df_plot_temp.hvplot(x='Date',
                                           by='Scenario',
-                                          ylabel='Degrees Fahrenheit',
+                                          ylabel='Degrees Celsius' if temp_unit_choice == 'C' else 'Degrees Fahrenheit',
                                           grid=True,
                                           title=temp_field).opts(min_width=1200, min_height=600, legend_position='bottom', shared_axes=False)
         o_final_temp_plots.append(o_temp_plot)
@@ -2221,7 +2294,8 @@ def get_spatial_group(field):
     return field.split('_')[0]
 
 def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
-                 c_default_units_all, period_choice, s_comparison, spatial_var_choice, c_gdf):
+                 c_default_units_all, period_choice, s_comparison, spatial_var_choice, c_gdf,
+                 c_field_list=None, li_wyt_selected=None, b_wyt_period_year=False, li_wyt_period_months=None):
     """
     Creates spatial plot of annual average values by Area, one tab per scenario
 
@@ -2230,7 +2304,7 @@ def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
     scenario_list: list
         Scenarios we want to plot
     unit_choice: str
-        Unused - no CFS/TAF conversion is performed for spatial data
+        CFS/TAF. currently assumed to be stored in TAF natively
     df_all: DataFrame
         Data to be filtered and plotted
     df_diffs: DataFrame
@@ -2238,19 +2312,32 @@ def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
     c_default_units_all: dict
         Unused - kept for interface consistency
     period_choice: object
-        Unused - spatial plot always aggregates by water year
+        Time period selected
     s_comparison: str
         Name of comparison scenario
     spatial_var_choice: str
         Substring identifying which variable group to plot
     c_gdf: dict
        Dict mapping spatial prefix -> GeoDataFrame with 'ID' and 'geometry' columns
+    c_field_list: dict, optional
+        Dictionary of fields and descriptions - required to resolve the WYT column name
+        when period_choice is a WYT/SHASTABIN field
+    li_wyt_selected: list, optional
+        Water year types selected for WYT time period
+    b_wyt_period_year: bool, optional
+        If water year totals have been selected for WYT time period
+    li_wyt_period_months: list, optional
+        Months selected for WYT time period
 
     Returns
     -------
     Panel Object
         Tabs (one per scenario), each containing an absolute map + diff map
     """
+    c_field_list = c_field_list or {}
+    li_wyt_selected = li_wyt_selected or []
+    li_wyt_period_months = li_wyt_period_months or []
+
     # look up correct GeoDataFrame for the selected variable
     o_gdf = c_gdf.get(spatial_var_choice)
     if o_gdf is None:
@@ -2268,6 +2355,22 @@ def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
 
     df_all_plot = df_all.copy(deep=True)
     df_all_plot.reset_index(inplace=True, drop=True)
+
+    #compute conversion factor
+    durations = [date.day for date in df_all_plot['Date']]
+    taf_cfs = np.divide((43560 * 1000 / 24 / 3600), durations)
+    agg_func = 'sum' if unit_choice == 'TAF' else 'mean'
+    s_val_col = f'AnnualAverage ({unit_choice})'
+
+    if unit_choice == 'CFS':
+        df_all_plot[ls_matched_var] = df_all_plot[ls_matched_var].multiply(taf_cfs, axis=0)
+
+    df_diffs_plot = df_diffs.copy(deep=True)
+    df_diffs_plot.reset_index(inplace=True, drop=True)
+    if unit_choice == 'CFS' and not df_diffs_plot.empty:
+        durations_diff = [date.day for date in df_diffs_plot['Date']]
+        taf_cfs_diff = np.divide((43560 * 1000 / 24 / 3600), durations_diff)
+        df_diffs_plot[ls_matched_var] = df_diffs_plot[ls_matched_var].multiply(taf_cfs_diff, axis=0)
 
     # check if comparison scen is in the data frame
     # if it's not, then we are creating the differences plot and don't want to include comparison scen
@@ -2290,31 +2393,103 @@ def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
     # derive the merge ID from the variable name (strip the leading prefix segment)
     b_strip_suffix = spatial_var_choice.endswith(('_EXT', '_INT'))
 
+    # if grouping by WYT, resolve the column name up front and merge it onto both df_all_plot and df_diffs
+    b_is_wyt_period = isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice)
+    s_wyt_col = None
+    if b_is_wyt_period:
+        if period_choice not in c_field_list:
+            return pn.pane.Markdown("## No data to display")
+        s_wyt_col = c_field_list[period_choice]
+        if s_wyt_col not in df_all_plot.columns:
+            return pn.pane.Markdown("## No data to display")
+
     #loop over every valid scenario
     scenario_tabs = pn.Tabs(tabs_location='left')
 
     for s_scen_to_use in ls_valid_scens:
         # absolute map for this scenario
-        df_wide = df_all_plot[df_all_plot.Scenario == s_scen_to_use][['Date', 'OctSeptYear', 'Month'] + ls_matched_var]
-        df_ann_avg_ts = df_wide.groupby(by=['OctSeptYear'])[ls_matched_var].sum()
-        df_ann_avg = pd.DataFrame(df_ann_avg_ts[ls_matched_var].mean()).reset_index()
-        df_ann_avg.columns = ['Variable', 'AnnualAverage']
+        ls_cols = ['Date', 'OctSeptYear', 'JanDecYear', 'MarFebYear', 'Month'] + ls_matched_var
+        if b_is_wyt_period:
+            ls_cols = ls_cols + [s_wyt_col]
+        df_wide = df_all_plot[df_all_plot.Scenario == s_scen_to_use][ls_cols]
 
-        df_ann_avg[s_id_col] = ['_'.join(s_var.split("_")[1:]) for s_var in df_ann_avg.Variable]
-        if b_strip_suffix:
-            df_ann_avg[s_id_col] = df_ann_avg[s_id_col].str.rsplit('_', n=1).str[0]
+        # filter df_wide according to period choice then reduce
+        df_ann_avg = None
 
-        o_gdf_abs = o_gdf.merge(df_ann_avg, left_on=s_id_col, right_on=s_id_col, how='inner')
-        o_gdf_plot = o_gdf_abs[['geometry', 'AnnualAverage']]
-        o_gdf_plot = o_gdf_plot.dropna(subset=['geometry'])
+        #year type
+        if period_choice in ['OctSeptYear', 'JanDecYear', 'MarFebYear']:
+            df_ann_avg_ts = df_wide.groupby(period_choice)[ls_matched_var].agg(agg_func)
+            if not df_ann_avg_ts.empty:
+                df_ann_avg = pd.DataFrame(df_ann_avg_ts[ls_matched_var].mean()).reset_index()
+                df_ann_avg.columns = ['Variable', s_val_col]
 
-        abs_panel = pn.Column(
-            pn.pane.Markdown(f"### {s_scen_to_use}"),
-            pn.pane.HoloViews(o_gdf_plot.hvplot(c='AnnualAverage', geo=True, frame_height=800), center=True),
-            pn.pane.DataFrame(df_ann_avg, max_height=700)
-        )
+        # water year type / shastabin grouping
+        elif b_is_wyt_period:
+            if li_wyt_selected and s_wyt_col in df_wide.columns:
+                df_wide_wyt = df_wide.dropna(subset=[s_wyt_col], how='all')
+                df_wide_wyt = df_wide_wyt[df_wide_wyt[s_wyt_col].isin(li_wyt_selected)]
 
-        #diff map for this scenario
+                if not df_wide_wyt.empty:
+                    if b_wyt_period_year:
+                        pass #use full water year, no filtering needed
+                    else:
+                        if len(li_wyt_period_months) > 0:
+                            df_wide_wyt = df_wide_wyt[df_wide_wyt['Month'].isin(li_wyt_period_months)]
+                        else:
+                            df_wide_wyt = df_wide_wyt.iloc[0:0]
+                if not df_wide_wyt.empty:
+                    df_ann_avg_ts = df_wide_wyt.groupby('OctSeptYear')[ls_matched_var].agg(agg_func)
+                    df_ann_avg = pd.DataFrame(df_ann_avg_ts[ls_matched_var].mean()).reset_index()
+                    df_ann_avg.columns = ['Variable', s_val_col]
+
+        # single month chosen
+        elif isinstance(period_choice, int):
+            df_wide_month = df_wide[df_wide.Month == period_choice]
+            if not df_wide_month.empty:
+                df_ann_avg_ts = df_wide_month.groupby('JanDecYear')[ls_matched_var].agg(agg_func)
+                df_ann_avg = pd.DataFrame(df_ann_avg_ts[ls_matched_var].mean()).reset_index()
+                df_ann_avg.columns = ['Variable', s_val_col]
+
+        # partial year / month range chosen (e.g. '10-4')
+        else:
+            i_start_month, i_end_month = int(period_choice.split('-')[0]), int(period_choice.split('-')[1])
+            if i_end_month > i_start_month:
+                li_months = list(range(i_start_month, i_end_month + 1))
+            else:
+                li_months = list(range(i_start_month, 13)) + list(range(1, i_end_month + 1))
+
+            df_wide_range = df_wide[df_wide['Month'].isin(li_months)]
+            if not df_wide_range.empty:
+                # if we cross a cal year change, group by WY, same as plot_time_group/plot_bars
+                if period_choice in ['11-3', '10-1', '12-2', '10-4']:
+                    df_ann_avg_ts = df_wide_range.groupby('OctSeptYear')[ls_matched_var].agg(agg_func)
+                else:
+                    df_ann_avg_ts = df_wide_range.groupby('JanDecYear')[ls_matched_var].agg(agg_func)
+
+                df_ann_avg = pd.DataFrame(df_ann_avg_ts[ls_matched_var].mean()).reset_index()
+                df_ann_avg.columns = ['Variable', s_val_col]
+
+        if df_ann_avg is None:
+            abs_panel = pn.Column(
+                pn.pane.Markdown(f"### {s_scen_to_use}"),
+                pn.pane.Markdown("## No data to display", height=400)
+            )
+        else:
+            df_ann_avg[s_id_col] = ['_'.join(s_var.split("_")[1:]) for s_var in df_ann_avg.Variable]
+            if b_strip_suffix:
+                df_ann_avg[s_id_col] = df_ann_avg[s_id_col].str.rsplit('_', n=1).str[0]
+
+            o_gdf_abs = o_gdf.merge(df_ann_avg, left_on=s_id_col, right_on=s_id_col, how='inner')
+            o_gdf_plot = o_gdf_abs[['geometry', s_val_col]]
+            o_gdf_plot = o_gdf_plot.dropna(subset=['geometry'])
+
+            abs_panel = pn.Column(
+                pn.pane.Markdown(f"### {s_scen_to_use}"),
+                pn.pane.HoloViews(o_gdf_plot.hvplot(c=s_val_col, geo=True, frame_height=800), center=True),
+                pn.pane.DataFrame(df_ann_avg, max_height=700)
+            )
+
+        # diff map for this scenario
         if s_scen_to_use == s_comparison:
             diff_panel = pn.Column(
                 pn.pane.Markdown(f"### {s_scen_to_use} (Difference from {s_comparison})"),
@@ -2323,7 +2498,15 @@ def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
             )
         else:
             # same merge logic as the absolute map above, run against df_diffs instead of df_all_plot
-            df_wide_diff = df_diffs[df_diffs.Scenario == s_scen_to_use][['Date', 'OctSeptYear', 'Month'] + ls_matched_var]
+            ls_diff_cols = ['Date', 'OctSeptYear', 'JanDecYear', 'MarFebYear', 'Month'] + ls_matched_var
+            if b_is_wyt_period:
+                # df_diffs doesn't carry the WYT column, so pull it in from df_all_plot by OctSeptYear
+                df_wyt_lookup = df_all_plot[df_all_plot.Scenario == s_scen_to_use][
+                    ['OctSeptYear', s_wyt_col]].drop_duplicates()
+                df_wide_diff = df_diffs_plot[df_diffs_plot.Scenario == s_scen_to_use][ls_diff_cols]
+                df_wide_diff = df_wide_diff.merge(df_wyt_lookup, on='OctSeptYear', how='left')
+            else:
+                df_wide_diff = df_diffs_plot[df_diffs_plot.Scenario == s_scen_to_use][ls_diff_cols]
 
             if df_wide_diff.empty or df_wide_diff[ls_matched_var].isna().all().all():
                 # NEW: guard for scenarios with no diff data - original didn't need this
@@ -2333,24 +2516,78 @@ def plot_spatial(scenario_list, unit_choice, df_all, df_diffs,
                     pn.pane.Markdown("## No data to display", height=800)
                 )
             else:
-                df_ann_avg_ts_diff = df_wide_diff.groupby(by=['OctSeptYear'])[ls_matched_var].sum()
-                df_ann_avg_diff = pd.DataFrame(df_ann_avg_ts_diff[ls_matched_var].mean()).reset_index()
-                df_ann_avg_diff.columns = ['Variable', 'AnnualAverage']
+                # same period_choice filtering/reduction as the absolute map, run against df_wide_diff instead of df_wide
+                df_ann_avg_diff = None
 
-                df_ann_avg_diff[s_id_col] = ['_'.join(s_var.split("_")[1:]) for s_var in df_ann_avg_diff.Variable]
-                if b_strip_suffix:
-                    df_ann_avg_diff[s_id_col] = df_ann_avg_diff[s_id_col].str.rsplit('_', n=1).str[0]
+                if period_choice in ['OctSeptYear', 'JanDecYear', 'MarFebYear']:
+                    df_ann_avg_ts_diff = df_wide_diff.groupby(period_choice)[ls_matched_var].agg(agg_func)
+                    if not df_ann_avg_ts_diff.empty:
+                        df_ann_avg_diff = pd.DataFrame(df_ann_avg_ts_diff[ls_matched_var].mean()).reset_index()
+                        df_ann_avg_diff.columns = ['Variable', s_val_col]
 
-                o_gdf_diff = o_gdf.merge(df_ann_avg_diff, left_on=s_id_col, right_on=s_id_col, how='inner')
-                o_gdf_plot_diff = o_gdf_diff[['geometry', 'AnnualAverage']]
-                o_gdf_plot_diff = o_gdf_plot_diff.dropna(subset=['geometry'])
+                elif b_is_wyt_period:
+                    if li_wyt_selected and s_wyt_col in df_wide_diff.columns:
+                        df_wide_diff_wyt = df_wide_diff.dropna(subset=[s_wyt_col], how='all')
+                        df_wide_diff_wyt = df_wide_diff_wyt[df_wide_diff_wyt[s_wyt_col].isin(li_wyt_selected)]
 
-                diff_panel = pn.Column(
-                    pn.pane.Markdown(f"### {s_scen_to_use} (Difference from {s_comparison})"),
-                    pn.pane.HoloViews(o_gdf_plot_diff.hvplot(
-                        c='AnnualAverage', geo=True, frame_height=800), center=True),
-                    pn.pane.DataFrame(df_ann_avg_diff, max_height=700)
-                )
+                        if not df_wide_diff_wyt.empty:
+                            if not b_wyt_period_year:
+                                if len(li_wyt_period_months) > 0:
+                                    df_wide_diff_wyt = df_wide_diff_wyt[
+                                        df_wide_diff_wyt['Month'].isin(li_wyt_period_months)]
+                                else:
+                                    df_wide_diff_wyt = df_wide_diff_wyt.iloc[0:0]
+
+                        if not df_wide_diff_wyt.empty:
+                            df_ann_avg_ts_diff = df_wide_diff_wyt.groupby('OctSeptYear')[ls_matched_var].agg(agg_func)
+                            df_ann_avg_diff = pd.DataFrame(df_ann_avg_ts_diff[ls_matched_var].mean()).reset_index()
+                            df_ann_avg_diff.columns = ['Variable', s_val_col]
+
+                elif isinstance(period_choice, int):
+                    df_wide_diff_month = df_wide_diff[df_wide_diff.Month == period_choice]
+                    if not df_wide_diff_month.empty:
+                        df_ann_avg_ts_diff = df_wide_diff_month.groupby('JanDecYear')[ls_matched_var].agg(agg_func)
+                        df_ann_avg_diff = pd.DataFrame(df_ann_avg_ts_diff[ls_matched_var].mean()).reset_index()
+                        df_ann_avg_diff.columns = ['Variable', s_val_col]
+
+                else:
+                    i_start_month, i_end_month = int(period_choice.split('-')[0]), int(period_choice.split('-')[1])
+                    if i_end_month > i_start_month:
+                        li_months = list(range(i_start_month, i_end_month + 1))
+                    else:
+                        li_months = list(range(i_start_month, 13)) + list(range(1, i_end_month + 1))
+
+                    df_wide_diff_range = df_wide_diff[df_wide_diff['Month'].isin(li_months)]
+                    if not df_wide_diff_range.empty:
+                        if period_choice in ['11-3', '10-1', '12-2', '10-4']:
+                            df_ann_avg_ts_diff = df_wide_diff_range.groupby('OctSeptYear')[ls_matched_var].agg(agg_func)
+                        else:
+                            df_ann_avg_ts_diff = df_wide_diff_range.groupby('JanDecYear')[ls_matched_var].agg(agg_func)
+
+                        df_ann_avg_diff = pd.DataFrame(df_ann_avg_ts_diff[ls_matched_var].mean()).reset_index()
+                        df_ann_avg_diff.columns = ['Variable', s_val_col]
+
+                if df_ann_avg_diff is None:
+                    diff_panel = pn.Column(
+                        pn.pane.Markdown(f"### {s_scen_to_use} (Difference from {s_comparison})"),
+                        pn.pane.Markdown("## No data to display", height=800)
+                    )
+                else:
+                    df_ann_avg_diff[s_id_col] = ['_'.join(s_var.split("_")[1:]) for s_var in
+                                                 df_ann_avg_diff.Variable]
+                    if b_strip_suffix:
+                        df_ann_avg_diff[s_id_col] = df_ann_avg_diff[s_id_col].str.rsplit('_', n=1).str[0]
+
+                    o_gdf_diff = o_gdf.merge(df_ann_avg_diff, left_on=s_id_col, right_on=s_id_col, how='inner')
+                    o_gdf_plot_diff = o_gdf_diff[['geometry', s_val_col]]
+                    o_gdf_plot_diff = o_gdf_plot_diff.dropna(subset=['geometry'])
+
+                    diff_panel = pn.Column(
+                        pn.pane.Markdown(f"### {s_scen_to_use} (Difference from {s_comparison})"),
+                        pn.pane.HoloViews(o_gdf_plot_diff.hvplot(
+                            c=s_val_col, geo=True, frame_height=800), center=True),
+                        pn.pane.DataFrame(df_ann_avg_diff, max_height=700)
+                    )
 
         scenario_tabs.append((s_scen_to_use, pn.Row(abs_panel, diff_panel)))
 
