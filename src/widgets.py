@@ -819,7 +819,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     ls_df_diffs = []
     c_field_list_all = {}
     c_default_units_all = {}
-    s_comparison = None
+    ls_all_comparisons = []
     ls_metadata_panels = []
     ls_field_names_dfs = []
     single_year_scenarios = []
@@ -829,8 +829,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         ls_df_diffs.append(df_diffs)
         c_field_list_all.update(c_field_list)
         c_default_units_all.update(c_default_units)
-        if s_comparison is None:
-            s_comparison = s_mod_comparison
+        ls_all_comparisons.append(s_mod_comparison)
 
         #create metadata
         o_metadata, df_field_names = create_metadata(scenario_names, c_field_list, c_default_units, s_module)
@@ -846,7 +845,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     scenario_names_combined = df_all_data_combined['Scenario'].unique().tolist()
 
     # remove comparison scen from the differences dataframe as all values are zero
-    df_diffs_combined = df_diffs_combined[df_diffs_combined.Scenario != s_comparison]
+    df_diffs_combined = df_diffs_combined[~df_diffs_combined.Scenario.isin(ls_all_comparisons)]
 
     # naming stage no longer needed now that all modules' data is loaded and combined
     for _ in range(len(module_column)):
@@ -1049,7 +1048,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         unit_choice=unit_selector,
         df_all=df_all_data_combined,
         c_default_units=c_default_units_all,
-        s_comparison=s_comparison,
+        ls_comparison=ls_all_comparisons,
         c_field_list=c_field_list_all,
         temp_unit_choice=temp_unit_selector,
     )
@@ -1063,7 +1062,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         df_all=df_all_data_combined,
         c_default_units=c_default_units_all,
         period_choice=period_selector,
-        s_comparison=s_comparison,
+        ls_comparison=ls_all_comparisons,
         c_field_list=c_field_list_all,
         li_wyt_selected=wyt_selector,
         b_wyt_period_year=wyt_period_selector_year,
@@ -1081,7 +1080,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         unit_choice=unit_selector,
         stat_choice=bar_stat_sel,
         c_default_units=c_default_units_all,
-        s_comparison=s_comparison,
+        ls_comparison=ls_all_comparisons,
         c_field_list=c_field_list_all,
         li_wyt_selected=wyt_selector,
         b_wyt_period_year=wyt_period_selector_year,
@@ -1098,7 +1097,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         unit_choice=unit_selector,
         stat_choice=monthly_stat_sel,
         c_default_units=c_default_units_all,
-        s_comparison=s_comparison,
+        ls_comparison=ls_all_comparisons,
         c_field_list=c_field_list_all,
         period_choice=period_selector,
         li_wyt_selected=wyt_selector,
@@ -1121,7 +1120,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             plot_values,
             scenario_list=scen_selector, var_list=mod_var_ts,
             unit_choice=unit_selector, df_all=df_diffs_m,
-            c_default_units=c_units_m, s_comparison=s_mod_comp_m,
+            c_default_units=c_units_m, ls_comparison=[s_mod_comp_m],
             c_field_list=c_fields_m, temp_unit_choice=temp_unit_selector
         )))
         #time aggregated differences plots
@@ -1130,7 +1129,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             scenario_list=scen_selector, var_list=mod_var_grouped,
             unit_choice=unit_selector, df_all=df_diffs_m,
             c_default_units=c_units_m, period_choice=period_selector,
-            s_comparison=s_mod_comp_m, c_field_list=c_fields_m,
+            ls_comparison=[s_mod_comp_m], c_field_list=c_fields_m,
             li_wyt_selected=wyt_selector, b_wyt_period_year=wyt_period_selector_year,
             li_wyt_period_months=wyt_period_selector, temp_unit_choice=temp_unit_selector
         )))
@@ -1140,7 +1139,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             df_all=df_diffs_m, period_choice=period_selector,
             var_list=mod_var_bar, scenario_list=scen_selector,
             unit_choice=unit_selector, stat_choice=bar_stat_sel,
-            c_default_units=c_units_m, s_comparison=s_mod_comp_m,
+            c_default_units=c_units_m, ls_comparison=[s_mod_comp_m],
             c_field_list=c_fields_m, li_wyt_selected=wyt_selector,
             b_wyt_period_year=wyt_period_selector_year,
             li_wyt_period_months=wyt_period_selector, temp_unit_choice=temp_unit_selector
@@ -1151,7 +1150,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             df_all=df_diffs_m, var_list=mod_var_monthly,
             scenario_list=scen_selector, unit_choice=unit_selector,
             stat_choice=monthly_stat_sel, c_default_units=c_units_m,
-            s_comparison=s_mod_comp_m, c_field_list=c_fields_m,
+            ls_comparison=[s_mod_comp_m], c_field_list=c_fields_m,
             period_choice=period_selector, li_wyt_selected=wyt_selector, temp_unit_choice=temp_unit_selector
         )))
     #temperature plots

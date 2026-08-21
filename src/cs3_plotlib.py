@@ -9,7 +9,7 @@ import holoviews as hv
 from bokeh.models import CustomJSTickFormatter
 
 
-def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s_comparison, c_field_list, temp_unit_choice='F'):
+def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, ls_comparison, c_field_list, temp_unit_choice='F'):
     """
     Creates the timeseries plots
 
@@ -25,8 +25,8 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
         Data to be filtered and plotted
     c_default_units: dict
         Dictionary of default units for each field
-    s_comparison: str
-        Name of comparison scenario
+    ls_comparison: list
+        list of names of comparison scenarios
     c_field_list: dict
         Dictionary of fields and descriptions
     temp_unit_choice: str
@@ -48,15 +48,13 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
 
     b_diffs_flag = False
 
-    # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
-    if s_comparison in scenario_list:
-        scenario_list.remove(s_comparison)
-        scenario_list.append(s_comparison)
-
-    # check if comparison scen is in the data frame
-    # if it's not, then we are creating the differences plot and don't want to include comparison scen
-    if s_comparison not in df_all_plot.Scenario.unique():
-        scenario_list = [scen for scen in scenario_list if scen != s_comparison]
+    # # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot for all modules
+    scenario_list = [scen for scen in scenario_list if scen not in ls_comparison] + \
+                    [scen for scen in ls_comparison if scen in scenario_list]
+    # check if none of the comparison scenarios are in the data frame
+    # if none are, then we are creating the differences plot and don't want to include them
+    if not any(comp in df_all_plot.Scenario.unique() for comp in ls_comparison):
+        scenario_list = [scen for scen in scenario_list if scen not in ls_comparison]
         b_diffs_flag = True
 
     # check if no scenarios are selected
@@ -285,7 +283,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, s
         sizing_mode='stretch_width')
 
 def plot_time_group(scenario_list, var_list, unit_choice, df_all,
-                    c_default_units, period_choice, s_comparison,
+                    c_default_units, period_choice, ls_comparison,
                     c_field_list, li_wyt_selected, b_wyt_period_year, li_wyt_period_months, temp_unit_choice='F'):
     """
     Creates time aggregated plot
@@ -304,8 +302,8 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         Dictionary of default units for each field
     period_choice: int or str
         Time period selected
-    s_comparison: str
-        Name of comparison scenario
+    ls_comparison: list
+        list of names of comparison scenarios
     c_field_list: dict
         Dictionary of fields and descriptions
     li_wyt_selected: list
@@ -333,15 +331,13 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
     b_diffs_flag = False
 
-    # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
-    if s_comparison in scenario_list:
-        scenario_list.remove(s_comparison)
-        scenario_list.append(s_comparison)
-
-    # check if comparison scen is in the data frame
-    # if its not, then we are creating the differences plot and dont want to include comparison scen
-    if s_comparison not in df_all_plot.Scenario.unique():
-        scenario_list = [scen for scen in scenario_list if scen != s_comparison]
+    # # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot for all modules
+    scenario_list = [scen for scen in scenario_list if scen not in ls_comparison] + \
+                    [scen for scen in ls_comparison if scen in scenario_list]
+    # check if none of the comparison scenarios are in the data frame
+    # if none are, then we are creating the differences plot and don't want to include them
+    if not any(comp in df_all_plot.Scenario.unique() for comp in ls_comparison):
+        scenario_list = [scen for scen in scenario_list if scen not in ls_comparison]
         b_diffs_flag = True
 
     # check if any scenarios are selected
@@ -1244,7 +1240,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
             )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), pn.pane.DataFrame(df_exceed, index=False, max_height=500))
 
 def plot_bars(df_all, period_choice, var_list, scenario_list,
-              unit_choice, stat_choice, c_default_units, s_comparison, c_field_list,
+              unit_choice, stat_choice, c_default_units, ls_comparison, c_field_list,
               li_wyt_selected, b_wyt_period_year, li_wyt_period_months, temp_unit_choice = 'F'):
     """
     Creates bar plot
@@ -1265,8 +1261,8 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         Statistic to calculate
     c_default_units: dict
         Dictionary of default units for each field
-    s_comparison: str
-        Name of comparison scenario
+    ls_comparison: list
+        list of names of comparison scenarios
     c_field_list: dict
         Dictionary of fields and descriptions
     li_wyt_selected: list
@@ -1294,15 +1290,13 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
 
     b_diffs_flag = False
 
-    # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
-    if s_comparison in scenario_list:
-        scenario_list.remove(s_comparison)
-        scenario_list.insert(0, s_comparison)
-
-    # check if comparison scen is in the data frame
-    # if it's not, then we are creating the differences plot and dont want to include comparison scen
-    if s_comparison not in df_all.Scenario.unique():
-        scenario_list = [scen for scen in scenario_list if scen != s_comparison]
+    # # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot for all modules
+    scenario_list = [scen for scen in ls_comparison if scen in scenario_list] + \
+                    [scen for scen in scenario_list if scen not in ls_comparison]
+    # check if none of the comparison scenarios are in the data frame
+    # if none are, then we are creating the differences plot and don't want to include them
+    if not any(comp in df_all_plot.Scenario.unique() for comp in ls_comparison):
+        scenario_list = [scen for scen in scenario_list if scen not in ls_comparison]
         b_diffs_flag = True
 
     # check if no scenarios are selected
@@ -1842,7 +1836,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
 
 
 def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
-                    stat_choice, c_default_units, s_comparison,
+                    stat_choice, c_default_units, ls_comparison,
                     c_field_list, period_choice, li_wyt_selected, temp_unit_choice = 'F'):
     """
     Creates monthly pattern plot
@@ -1861,8 +1855,8 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
         Statistic to calculate
     c_default_units: dict
         Dictionary of default units for each field
-    s_comparison: str
-        Name of comparison scenario
+    ls_comparison: list
+        list of names of comparison scenarios
     c_field_list: dict
         Dictionary of fields and descriptions
     li_wyt_selected: list
@@ -1890,15 +1884,13 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
 
     b_diffs_flag = False
 
-    # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot
-    if s_comparison in scenario_list:
-        scenario_list.remove(s_comparison)
-        scenario_list.append(s_comparison)
-
-    # check if comparison scen is in the data frame
-    # if it's not, then we are creating the differences plot and don't want to include comparison scen
-    if s_comparison not in df_all_plot.Scenario.unique():
-        scenario_list = [scen for scen in scenario_list if scen != s_comparison]
+    # # ensure comparison scen is at the end of the list so the coloring is constant with the differences plot for all modules
+    scenario_list = [scen for scen in scenario_list if scen not in ls_comparison] + \
+                    [scen for scen in ls_comparison if scen in scenario_list]
+    # check if none of the comparison scenarios are in the data frame
+    # if none are, then we are creating the differences plot and don't want to include them
+    if not any(comp in df_all_plot.Scenario.unique() for comp in ls_comparison):
+        scenario_list = [scen for scen in scenario_list if scen not in ls_comparison]
         b_diffs_flag = True
 
     # check if no scenarios are selected
