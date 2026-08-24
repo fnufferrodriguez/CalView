@@ -6,7 +6,122 @@ import pandas as pd
 import numpy as np
 import panel as pn
 import holoviews as hv
-from bokeh.models import CustomJSTickFormatter
+from bokeh.models import CustomJSTickFormatter, LinearAxis, Range1d
+
+# Lookup table for categorical water-year-type / bin codes -> display labels.
+# Shared across plotting functions that need to relabel a WYT/SHASTABIN axis.
+C_NO_UNIT_NAMES = {
+    'WYT_SAC_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
+    'WYT_SJR_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
+    'WYT_TRIN_': {1: 'Extremely Wet', 2: 'Wet', 3: 'Normal', 4: 'Dry', 5: 'Critically Dry'},
+    'WYT_SHASTA_CVP_': {0: 'Non-Critical', 1: 'ShastaCritical'},
+    'WYT_FEATHER_': {1: 'Non-Critical', 2: 'Critically Dry'},
+    'WYT_SJRRP_DV': {1: 'Wet', 2: 'Normal-Wet', 3: 'Normal-Dry', 4: 'Dry', 5: 'Critical High', 6: 'Critical Low'},
+    'WYT_AMERD983_CVP_': {1: 'Non-Critical', 2: 'Critically Dry'},
+    'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
+}
+
+def build_multi_unit_overlay(df_source, c_unit_to_cols, x='Date', hline_opts=None, min_height=600):
+    """
+    Builds a HoloViews overlay of line curves for up to 2 distinct units, each on its own y-axis. If more than 2 unit groups are present,
+    only the first 2 (by insertion order) are plotted; the rest are silently dropped.
+
+    This doesnt use holoviews built in multi_y=True option since this resulted in phantom axis behavior. Instead this computes the secondary axis's data range in
+    pandas, create the Bokeh Range1d/LinearAxis, and reassign the correct glyph renderers to it.
+
+    This is shared plumbing intended for reuse across plot_values,
+    plot_time_group, plot_bars, and monthly_pattern
+
+    Parameters
+    ----------
+    df_source: DataFrame
+        Data to plot, must contain `x` and every column referenced in c_unit_to_cols
+    c_unit_to_cols: dict
+        {unit_label: [col_name, ...]} - which columns belong to which unit group.
+        Only the first 2 keys (insertion order) will be plotted. Order determines whether the unit is plotted on the left or right of the plot
+    x: str
+        Column to use for the x-axis
+    hline_opts: dict or None
+        Options for the hv.HLine(0) reference line (e.g. diffs-plot styling).
+        If None, defaults to an invisible line so the base overlay still exists.
+    min_height: int
+        Minimum height for the resulting plot
+
+    Returns
+    -------
+    HoloViews Overlay
+    """
+    if hline_opts is None:
+        hline_opts = dict(line_width=0)
+
+    # cap at 2 unit groups
+    ls_units = list(c_unit_to_cols.keys())[:2]
+
+    if not ls_units:
+        return hv.HLine(0).opts(**hline_opts)
+
+    primary_unit = ls_units[0]
+    primary_cols = c_unit_to_cols[primary_unit]
+    secondary_unit = ls_units[1] if len(ls_units) > 1 else None
+    secondary_cols = c_unit_to_cols[secondary_unit] if secondary_unit else []
+
+    # unitless fields get a generic label 'Value'
+    primary_label = primary_unit if primary_unit else 'Value'
+    secondary_label = secondary_unit if secondary_unit else None
+
+    #build one curve per column
+    curves = []
+    for col in primary_cols:
+        legend_label = f'{col} [{primary_label}]' if primary_label else col
+        curve = hv.Curve(df_source, x, col, label=legend_label).opts(tools=['hover'])
+        curves.append(curve)
+    for col in secondary_cols:
+        legend_label = f'{col} [{secondary_label}]' if secondary_label else col
+        curve = hv.Curve(df_source, x, col, label=legend_label).opts(tools=['hover'])
+        curves.append(curve)
+
+    if not curves:
+        return hv.HLine(0).opts(**hline_opts)
+
+    overlay = hv.Overlay(curves)
+
+    opts_kwargs = dict(legend_position='bottom', legend_cols=1, min_height=min_height, ylabel=primary_label)
+
+    if secondary_unit is not None:
+        # compute the secondary axis data range up front so the hook can just apply it
+        sec_data = df_source[secondary_cols]
+        sec_min = float(sec_data.min().min())
+        sec_max = float(sec_data.max().max())
+        if sec_min == sec_max:
+            sec_min -= 1
+            sec_max += 1
+        pad = (sec_max - sec_min) * 0.05
+        sec_range = (sec_min - pad, sec_max + pad)
+
+        secondary_col_set = set(secondary_cols)
+
+        def add_secondary_axis(plot, element):
+            #plot.state is the actual Bokeh figure object underlying the HoloViews plot once rendering is complete
+            fig = plot.state
+
+            #only create the secondary axis once to not duplicate axis
+            if 'secondary' not in fig.extra_y_ranges:
+                fig.extra_y_ranges['secondary'] = Range1d(start=sec_range[0], end=sec_range[1])
+                fig.add_layout(LinearAxis(y_range_name='secondary', axis_label=secondary_label), 'right')
+
+            #go through every renderer already on the figure and reassign ones that belong to the secondary unit to the right axis
+            for renderer in fig.renderers:
+                glyph = getattr(renderer, 'glyph', None)
+                if glyph is None:
+                    continue
+                y_field = getattr(glyph, 'y', None)
+                if isinstance(y_field, str) and y_field in secondary_col_set:
+                    renderer.y_range_name = 'secondary'
+
+        opts_kwargs['hooks'] = [add_secondary_axis]
+
+    overlay = overlay.opts(**opts_kwargs)
+    return overlay
 
 
 def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, ls_comparison, c_field_list, temp_unit_choice='F'):
@@ -72,16 +187,25 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, l
     cfs_taf = np.multiply(durations, (24 * 3600 / 43560 / 1000))
     taf_cfs = np.divide((43560 * 1000 / 24 / 3600), durations)
 
+    # WYT/SHASTABIN variable handling
+    # Only one is ever supported, same as the original behavior: if more than one is selected, warn and keep only the first.
+    ls_wyt_vars_selected = [
+        var for var in var_list
+        if 'WYT' in var or 'SHASTABIN_' in var
+    ]
+    s_wyt_var = None
+    if ls_wyt_vars_selected:
+        s_wyt_var = ls_wyt_vars_selected[0]
+        if len(ls_wyt_vars_selected) > 1 and b_diffs_flag:
+            pn.state.notifications.position = 'center-center'
+            pn.state.notifications.warning('If more than one variable without units is selected, only the first will be displayed.', duration = 7000)
 
-    b_no_unit_flag = False
-    s_no_unit_var = ''
+    # remaining (non-WYT) vars go through normal unit-based conversion/grouping
+    var_list_final = [var for var in var_list if var not in ls_wyt_vars_selected]
 
-    b_alt_unit = False
-    ls_alt_vars = []
-    s_alt_unit = ''
+    # keep track of the display unit for every selected (non-WYT) variable
+    c_var_units = {}
 
-    # create copy of var list since lists are mutable
-    var_list_final = var_list[:]
     # Unit conversion
     for var in var_list:
         try:
@@ -89,64 +213,69 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, l
         except:
             original_unit = None
 
-        # check for variables that are not cfs/taf like EC, temperature, X2 position
-        if original_unit not in ['NONE', 'CFS', 'TAF']:
-            # if we havent already declared what the unit we will keep track of is, declare it
-            if s_alt_unit == '':
-                s_alt_unit = original_unit
-            if original_unit == s_alt_unit:
-                b_alt_unit = True
-                ls_alt_vars.append(var)
+        if original_unit == 'CFS':
+            if unit_choice == 'TAF':
+                df_all_plot[var] = np.multiply(df_all_plot[var], cfs_taf)
+            c_var_units[var] = unit_choice
 
-        elif original_unit == 'NONE':
-            # if we have more than one variable with no units selected we are not going to use it
-            if b_no_unit_flag:
-                if b_diffs_flag:
-                    pn.state.notifications.position = 'center-center'
-                    pn.state.notifications.warning('If more than one variable without units of TAF/CFS is selected, only the first will be displayed.', duration=7000)
-                var_list_final.remove(var)
-                continue
-            b_no_unit_flag = True
-            s_no_unit_var = var
-            ls_alt_vars.append(var)
-            pass
-        elif original_unit == unit_choice:
-            pass
-        elif original_unit == 'CFS':
-            df_all_plot[var] = \
-                np.multiply(df_all_plot[var], cfs_taf)
         elif original_unit == 'TAF':
-            df_all_plot[var] = \
-                np.multiply(df_all_plot[var], taf_cfs)
+            if unit_choice == 'CFS':
+                df_all_plot[var] = np.multiply(df_all_plot[var], taf_cfs)
+            c_var_units[var] = unit_choice
 
-    # If we found any non cfs/taf variables, we will only use those
-    if b_alt_unit:
-        var_list_final = ls_alt_vars
-        if s_alt_unit == 'DEGF':
+        # Temperature
+        elif original_unit == 'DEGF' or original_unit == 'DEGC':
             if temp_unit_choice == 'C':
-                df_all_plot[ls_alt_vars] = (df_all_plot[ls_alt_vars] - 32) * 5 / 9
-                unit_choice = 'Degrees Celsius'
+                df_all_plot[var] = (df_all_plot[var] - 32) * 5 / 9
+                c_var_units[var] = 'Degrees Celsius'
             else:
-                unit_choice = 'Degrees Fahrenheit'
+                c_var_units[var] = 'Degrees Fahrenheit'
+
+        # Unitless
+        elif original_unit == 'NONE':
+            c_var_units[var] = ''
+
+        # EC, position, IN/MONTH etc.
         else:
-            unit_choice = s_alt_unit
+            c_var_units[var] = original_unit
+
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
 
     # switch from variable name to description
+    c_desc_units = {
+        c_field_list[var]: c_var_units[var]
+        for var in var_list_final
+    }
+    var_list_final_desc = [c_field_list[var] for var in var_list_final]
+
+    # WYT var: figure out its description-form column name before the big rename below
+    s_wyt_col = c_field_list[s_wyt_var] if s_wyt_var else None
+
     df_all_plot.rename(c_field_list, axis='columns', inplace=True)
-    var_list_final = [c_field_list[var] for var in var_list_final]
 
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
     df_wide.reset_index(inplace=True, drop=True)
 
     keeplist = ['Date']
+    wyt_keeplist = []
+
+    # WYT columns (one per scenario), kept separate from the unit-grouped columns
+    if s_wyt_col:
+        for scenario in scenario_list:
+            df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[s_wyt_col]]
+            df_temp.reset_index(inplace=True, drop=True)
+            col_names = [f'{scenario}: {s_wyt_col}']
+            df_temp.columns = col_names
+            df_wide[col_names] = df_temp[col_names]
+            wyt_keeplist.extend(col_names)
+        keeplist.extend(wyt_keeplist)
 
     for scenario in scenario_list:
-        df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][var_list_final]
+        df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][var_list_final_desc]
         #skip vars this scenarios module doesnt produce
-        valid_vars = [v for v in var_list_final if not df_temp[v].isna().all()]
+        valid_vars = [v for v in var_list_final_desc if not df_temp[v].isna().all()]
         if not valid_vars:
             continue
         df_temp = df_temp[valid_vars]
@@ -163,127 +292,68 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, l
     df_plot.loc[:, df_plot.columns != 'Date'] = df_plot.loc[:, df_plot.columns != 'Date'].round(1)
 
     keeplist.remove('Date')
-    if b_no_unit_flag:
-        no_unit_keeplist = [var for var in keeplist if s_no_unit_var in var]
-        unit_keeplist = [var for var in keeplist if var not in no_unit_keeplist]
-        c_no_unit_names = {
-            'WYT_SAC_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_SJR_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_TRIN_': {1: 'Extremely Wet', 2: 'Wet', 3: 'Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_SHASTA_CVP_': {0: 'Non-Critical', 1: 'ShastaCritical'},
-            'WYT_FEATHER_': {1: 'Non-Critical', 2: 'Critically Dry'},
-            'WYT_SJRRP_DV': {1: 'Wet', 2: 'Normal-Wet', 3: 'Normal-Dry', 4: 'Dry', 5: 'Critical High', 6: 'Critical Low'},
-            'WYT_AMERD983_CVP_': {1: 'Non-Critical', 2: 'Critically Dry'},
-            'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
-        }
-        if '/' in s_no_unit_var:
-            s_var = s_no_unit_var.split('/')[1]
-        else:
-            s_var = s_no_unit_var
-        if s_var not in c_no_unit_names.keys():
+
+    if len(keeplist) == 0:
+        return pn.pane.Markdown("## No data to display")
+
+    unit_keeplist = [col for col in keeplist if col not in wyt_keeplist]
+
+    # group plotted columns by their unit (excludes wyt column)
+    c_unit_to_cols = {}
+    for var in var_list_final_desc:
+        unit = c_desc_units[var]
+        for scenario in scenario_list:
+            col = f'{scenario}: {var}'
+            if col in unit_keeplist:
+                c_unit_to_cols.setdefault(unit, []).append(col)
+
+    hline_opts = dict(color = 'black', line_width = 1) if b_diffs_flag else dict(line_width=0)
+
+    # WYT scatter plot if present
+    wyt_plot_pane = None
+    if s_wyt_col and wyt_keeplist:
+        c_no_unit_names = C_NO_UNIT_NAMES
+        s_var = s_wyt_var.split('/')[1] if '/' in s_wyt_var else s_wyt_var
+        if s_var not in c_no_unit_names:
             yformatter = None
         else:
             yformatter = CustomJSTickFormatter(code="""
                                             var labels = %s;
                                             return labels[tick] || tick;
                                          """ % c_no_unit_names[s_var])
-        # if we only have the no unit variable selected
-        if len(var_list_final) == 1:
-            return pn.Row(
-                pn.Column(pn.pane.HoloViews(df_plot.hvplot.scatter(
-                    x='Date',
-                    y=no_unit_keeplist,
-                    ylabel=c_default_units[s_no_unit_var] if c_default_units[s_no_unit_var] != 'NONE' else
-                    c_field_list[s_no_unit_var],
-                    xlabel='Date',
-                    group_label='',
-                    grid=True,
-                    min_height=600,
-                    yformatter=yformatter
-                ).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
-                          sizing_mode='stretch_width'),
-                pn.Column(pn.pane.DataFrame(df_plot, index=False, max_height=500), sizing_mode='stretch_width'),
-                sizing_mode='stretch_width'
-            )
-        # add horizontal line if we are doing the differences plot
-        if b_diffs_flag:
-            return pn.Row(
-                pn.Column(
-                    pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
-                        x='Date',
-                        y=unit_keeplist,
-                        ylabel=unit_choice,
-                        group_label='',
-                        xlabel='Date',
-                        grid=True,
-                        min_height=600
-                    )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
-                    pn.pane.HoloViews(df_plot.hvplot.scatter(
-                        x='Date',
-                        y=no_unit_keeplist,
-                        ylabel=c_default_units[s_no_unit_var] if c_default_units[s_no_unit_var] != 'NONE' else
-                        c_field_list[s_no_unit_var],
-                        xlabel='Date',
-                        group_label='',
-                        grid=True,
-                        min_height=400,
-                        yformatter=yformatter
-                    ).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
-                    sizing_mode='stretch_width'
-                ),
-                pn.Column(pn.pane.DataFrame(df_plot, index=False, max_height=500), sizing_mode='stretch_width'),
-                sizing_mode='stretch_width'
-            )
-        else:
-            return pn.Row(
-                pn.Column(
-                    pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_plot.hvplot(
-                        x='Date',
-                        y=unit_keeplist,
-                        ylabel=unit_choice,
-                        xlabel='Date',
-                        group_label='',
-                        grid=True,
-                        min_height=600,
-                    )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width',linked_axes=False),
-                    pn.pane.HoloViews(df_plot.hvplot.scatter(
-                        x='Date',
-                        y=no_unit_keeplist,
-                        ylabel=c_default_units[s_no_unit_var] if c_default_units[s_no_unit_var] != 'NONE' else
-                        c_field_list[s_no_unit_var],
-                        xlabel='Date',
-                        group_label='',
-                        grid=True,
-                        min_height=400,
-                        yformatter=yformatter
-                    ).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width',linked_axes=False),
-                    sizing_mode='stretch_width'
-                ),
-                pn.Column(pn.pane.DataFrame(df_plot, index=False, max_height=500), sizing_mode='stretch_width'),
-                sizing_mode='stretch_width'
-            )
-    # add horizontal line if we are doing the differences plot
-    if b_diffs_flag:
-        return pn.Row(pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
-            x='Date',
-            ylabel=unit_choice,
-            xlabel='Date',
-            grid=True,
-            min_height=600
-            )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), sizing_mode='stretch_width'),
-            pn.Column(pn.pane.DataFrame(df_plot, index=False, max_height=500), sizing_mode='stretch_width'),
-            sizing_mode='stretch_width')
 
-    else:
-        return pn.Row(pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_plot.hvplot(
+        wyt_overlay = hv.HLine(0).opts(**hline_opts) * df_plot.hvplot.scatter(
             x='Date',
-            ylabel=unit_choice,
+            y=wyt_keeplist,
+            ylabel=c_default_units[s_wyt_var] if c_default_units[s_wyt_var] != 'NONE' else c_field_list[s_wyt_var],
             xlabel='Date',
+            group_label='',
             grid=True,
-            min_height=600
-        )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False), sizing_mode='stretch_width'),
+            min_height=400,
+            yformatter=yformatter
+        )
+        wyt_overlay = wyt_overlay.opts(legend_position='bottom', legend_cols=1)
+        wyt_plot_pane = pn.pane.HoloViews(wyt_overlay, sizing_mode='stretch_width', linked_axes=False)
+
+    # build the main unit-grouped plot, if there are any non-WYT vars
+    main_plot_pane = None
+    if unit_keeplist:
+        o_main = build_multi_unit_overlay(df_plot, c_unit_to_cols, x='Date', hline_opts=hline_opts, min_height=600)
+        main_plot_pane = pn.pane.HoloViews(o_main, sizing_mode='stretch_width', linked_axes=False)
+
+    # assemble the plot column (WYT scatter stacked above the main plot)
+    if wyt_plot_pane is not None and main_plot_pane is not None:
+        plot_column = pn.Column(main_plot_pane, wyt_plot_pane, sizing_mode='stretch_width')
+    elif wyt_plot_pane is not None:
+        plot_column = pn.Column(wyt_plot_pane, sizing_mode='stretch_width')
+    else:
+        plot_column = pn.Column(main_plot_pane, sizing_mode='stretch_width')
+
+    return pn.Row(
+        plot_column,
         pn.Column(pn.pane.DataFrame(df_plot, index=False, max_height=500), sizing_mode='stretch_width'),
-        sizing_mode='stretch_width')
+        sizing_mode='stretch_width'
+    )
 
 def plot_time_group(scenario_list, var_list, unit_choice, df_all,
                     c_default_units, period_choice, ls_comparison,
