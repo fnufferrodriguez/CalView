@@ -43,7 +43,6 @@ def build_multi_unit_overlay(df_source, c_unit_to_cols, x='Date', hline_opts=Non
         Column to use for the x-axis
     hline_opts: dict or None
         Options for the hv.HLine(0) reference line (e.g. diffs-plot styling).
-        If None, defaults to an invisible line so the base overlay still exists.
     min_height: int
         Minimum height for the resulting plot
 
@@ -84,6 +83,10 @@ def build_multi_unit_overlay(df_source, c_unit_to_cols, x='Date', hline_opts=Non
         return hv.HLine(0).opts(**hline_opts)
 
     overlay = hv.Overlay(curves)
+
+    # diffs mode reference line at y=0
+    if hline_opts.get('line_width', 0) != 0:
+        overlay = overlay * hv.HLine(0).opts(**hline_opts)
 
     opts_kwargs = dict(legend_position='bottom', legend_cols=1, min_height=min_height, ylabel=primary_label)
 
@@ -265,6 +268,10 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, l
     if s_wyt_col:
         for scenario in scenario_list:
             df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[s_wyt_col]]
+            #for scenarios taken from modules without this field all values are NA so skip over
+            if df_temp[s_wyt_col].isna().all():
+                continue
+
             df_temp.reset_index(inplace=True, drop=True)
             col_names = [f'{scenario}: {s_wyt_col}']
             df_temp.columns = col_names
@@ -428,56 +435,46 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
     cfs_taf = np.multiply(durations, (24 * 3600 / 43560 / 1000))
     taf_cfs = np.divide((43560 * 1000 / 24 / 3600), durations)
 
-    b_alt_unit = False
-    ls_alt_vars = []
-    s_alt_unit = ''
-
-    # create copy of var list since lists are mutable
+    # per variable unit tracking
     var_list_final = var_list[:]
-    # Unit conversion
+    c_var_units = {}
+
+    # unit conversion
     for var in var_list:
         try:
             original_unit = c_default_units[var].strip().upper()
         except:
             original_unit = 'NONE'
-        # check for variables that are not cfs/taf like EC, temperature, X2 position
-        if original_unit not in ['NONE', 'CFS', 'TAF']:
-            # if we havent already declared what the unit we will keep track of is, declare it
-            if s_alt_unit == '':
-                s_alt_unit = original_unit
-            if original_unit == s_alt_unit:
-                b_alt_unit = True
-                ls_alt_vars.append(var)
-        elif original_unit not in ['CFS', 'TAF']:
-            var_list_final.remove(var)
-            pass
-        elif original_unit == unit_choice:
-            pass
-        elif original_unit == 'CFS':
-            df_all_plot[var] = \
-                np.multiply(df_all_plot[var], cfs_taf)
-        elif original_unit == 'TAF':
-            df_all_plot[var] = \
-                np.multiply(df_all_plot[var], taf_cfs)
-    agg_func = 'sum' if unit_choice == 'TAF' else 'mean'
 
-    # If we found any non cfs/taf variables, we will only use those
-    if b_alt_unit:
-        var_list_final = ls_alt_vars
-        if s_alt_unit == 'DEGF':
+        if original_unit == 'CFS':
+            if unit_choice == 'TAF':
+                df_all_plot[var] = np.multiply(df_all_plot[var], cfs_taf)
+            c_var_units[var] = unit_choice
+        elif original_unit == 'TAF':
+            if unit_choice == 'CFS':
+                df_all_plot[var] = np.multiply(df_all_plot[var], taf_cfs)
+            c_var_units[var] = unit_choice
+        elif original_unit == 'DEGF':
             if temp_unit_choice == 'C':
-                df_all_plot[ls_alt_vars] = (df_all_plot[ls_alt_vars] - 32) * 5 / 9
-                unit_choice = 'Degrees Celsius'
+                df_all_plot[var] = (df_all_plot[var] - 32) * 5 / 9
+                c_var_units[var] = 'Degrees Celsius'
             else:
-                unit_choice = 'Degrees Fahrenheit'
+                c_var_units[var] = 'Degrees Fahrenheit'
+        elif original_unit == 'NONE':
+            c_var_units[var] = ''
         else:
-            unit_choice = s_alt_unit
-        agg_func = 'mean'
+            c_var_units[var] = original_unit
+
+    agg_func = 'sum' if unit_choice == 'TAF' else 'mean'
 
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
 
     # switch from variable name to description
+    c_desc_units = {
+        c_field_list[var]: c_var_units[var]
+        for var in var_list_final
+    }
     df_all_plot.rename(c_field_list, axis='columns', inplace=True)
     var_list_final = [c_field_list[var] for var in var_list_final]
 
@@ -543,8 +540,9 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         df_wide[col_names] = df_temp[col_names]       # WHAT THE HECK
         for name in col_names:
             keeplist.append(name)
-        debug = True
 
+    #line for diffs plot
+    hline_opts = dict(color='black', line_width=1) if b_diffs_flag else dict(line_width=0)
     # ------- Agg ops below -------------
 
     # Remove incomplete years (default CS3 runs typically based on WY)
@@ -565,29 +563,24 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         # round to one decimal place
         df_plot.loc[:, df_plot.columns != 'Date'] = df_plot.loc[:, df_plot.columns != 'Date'].round(1)
 
-        # add horizontal line if we are doing the differences plot
-        if b_diffs_flag:
-            return pn.Row(
-                pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
-                    min_height=600,
-                    grid=True,
-                    ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
-                    xlabel='Year',
-                )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
-                          sizing_mode='stretch_width'),
-                pn.Column(pn.pane.DataFrame(df_plot, max_height=500), sizing_mode='stretch_width'),
-                sizing_mode='stretch_width')
-        else:
-            return pn.Row(
-                pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_plot.hvplot(
-                    min_height=600,
-                    grid=True,
-                    ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
-                    xlabel='Year',
-                )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
-                          sizing_mode='stretch_width'),
-                pn.Column(pn.pane.DataFrame(df_plot, max_height=500), sizing_mode='stretch_width'),
-                sizing_mode='stretch_width')
+        # group the plotted columns by unit and build the multi-axis overlay,
+        c_unit_to_cols = {}
+        for var in var_list_final:
+            unit = c_desc_units[var]
+            for scenario in scenario_list:
+                col = f'{scenario}: {var}'
+                if col in keeplist:
+                    c_unit_to_cols.setdefault(unit, []).append(col)
+
+        df_plot_reset = df_plot.reset_index()
+        o_overlay = build_multi_unit_overlay(df_plot_reset, c_unit_to_cols, x=period_choice, hline_opts=hline_opts, min_height=600)
+        o_overlay = o_overlay.opts(xlabel='Year')
+
+        return pn.Row(
+            pn.Column(pn.pane.HoloViews(o_overlay, sizing_mode='stretch_width', linked_axes=False),
+                      sizing_mode='stretch_width'),
+            pn.Column(pn.pane.DataFrame(df_plot, max_height=500), sizing_mode='stretch_width'),
+            sizing_mode='stretch_width')
 
     # if water year type is selected as period
     elif isinstance(period_choice, str) and ('WYT' in period_choice or 'SHASTABIN_' in period_choice):
@@ -648,16 +641,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
 
         s_title = "## " + s_wyt_col + " "
 
-        c_no_unit_names = {
-            'WYT_SAC_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_SJR_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_TRIN_': {1: 'Extremely Wet', 2: 'Wet', 3: 'Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_SHASTA_CVP_': {0: 'Non-Critical', 1: 'ShastaCritical'},
-            'WYT_FEATHER_': {1: 'Non-Critical', 2: 'Critically Dry'},
-            'WYT_SJRRP_DV': {1: 'Wet', 2: 'Normal-Wet', 3: 'Normal-Dry', 4: 'Dry', 5: 'Critical High', 6: 'Critical Low'},
-            'WYT_AMERD983_CVP_': {1: 'Non-Critical', 2: 'Critically Dry'},
-            'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
-        }
+        c_no_unit_names = C_NO_UNIT_NAMES
         try:
             if '/' in period_choice:
                 period_choice_stripped = period_choice.split('/')[1]
@@ -677,6 +661,7 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
             li_wyt_period_months.sort()
             ls_months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             s_title += "## " + ', '.join([ls_months[i-1] for i in li_wyt_period_months])
+
         # add horizontal line if we are doing the differences plot
         if b_diffs_flag:
             return pn.Column(
@@ -724,32 +709,25 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         c_num_to_month = {1: "January", 2: "February", 3: "March", 4: "April",
                           5: "May", 6: "June", 7: "July", 8: "August",
                           9: "September", 10: "October", 11: "November", 12: "December"}
-        # add horizontal line if we are doing the differences plot
-        if b_diffs_flag:
-            return pn.Row(
-                pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
-                    min_height=600,
-                    ylabel=c_num_to_month[period_choice] + ' ' + unit_choice,
-                    xlabel='Year',
-                    grid=True
-                )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
-                          sizing_mode='stretch_width'),
-                pn.Column(pn.pane.DataFrame(df_plot, max_height=500), sizing_mode='stretch_width'),
-                sizing_mode='stretch_width'
-            )
 
-        else:
-            return pn.Row(
-                pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_plot.hvplot(
-                    min_height=600,
-                    ylabel=c_num_to_month[period_choice] + ' ' + unit_choice,
-                    xlabel='Year',
-                    grid=True
-                )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
-                          sizing_mode='stretch_width'),
-                pn.Column(pn.pane.DataFrame(df_plot, max_height=500), sizing_mode='stretch_width'),
-                sizing_mode='stretch_width'
-            )
+        c_unit_to_cols = {}
+        for var in var_list_final:
+            unit = c_desc_units[var]
+            for scenario in scenario_list:
+                col = f'{scenario}: {var}'
+                if col in keeplist:
+                    c_unit_to_cols.setdefault(unit, []).append(col)
+
+        df_plot_reset = df_plot.reset_index()
+        o_overlay = build_multi_unit_overlay(df_plot_reset, c_unit_to_cols, x='JanDecYear', hline_opts=hline_opts, min_height=600)
+        o_overlay = o_overlay.opts(xlabel='Year', ylabel=c_num_to_month[period_choice] + ' ' + unit_choice)
+
+        return pn.Row(
+            pn.Column(pn.pane.HoloViews(o_overlay, sizing_mode='stretch_width', linked_axes=False),
+                      sizing_mode='stretch_width'),
+            pn.Column(pn.pane.DataFrame(df_plot, max_height=500), sizing_mode='stretch_width'),
+            sizing_mode='stretch_width'
+        )
     # if they picked a partial month
     else:
         # pull out start and stop months and then create a list of all the months in between
@@ -768,39 +746,33 @@ def plot_time_group(scenario_list, var_list, unit_choice, df_all,
         # if we cross a cal year change, group by WY
         if period_choice in ['11-3', '10-1', '12-2', '10-4']:
             df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
+            group_col = 'OctSeptYear'
         else:
             df_grouped = df_wide.groupby(by=['JanDecYear']).agg(agg_func)
+            group_col = 'JanDecYear'
         df_plot = df_grouped[keeplist]
 
         # round to one decimal place
         df_plot.loc[:, df_plot.columns != 'Date'] = df_plot.loc[:, df_plot.columns != 'Date'].round(1)
 
-        # add horizontal line if we are doing the differences plot
-        if b_diffs_flag:
-            return pn.Row(
-                pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
-                    min_height=600,
-                    ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
-                    xlabel='Year',
-                    grid=True
-                )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
-                          sizing_mode='stretch_width'),
-                pn.Column(pn.pane.DataFrame(df_plot, max_height=500), sizing_mode='stretch_width'),
-                sizing_mode='stretch_width'
-            )
+        c_unit_to_cols = {}
+        for var in var_list_final:
+            unit = c_desc_units[var]
+            for scenario in scenario_list:
+                col = f'{scenario}: {var}'
+                if col in keeplist:
+                    c_unit_to_cols.setdefault(unit, []).append(col)
 
-        else:
-            return pn.Row(
-                pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_plot.hvplot(
-                    min_height=600,
-                    ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice,
-                    xlabel='Year',
-                    grid=True
-                )).opts(legend_position='bottom', legend_cols=1), sizing_mode='stretch_width', linked_axes=False),
-                          sizing_mode='stretch_width'),
-                pn.Column(pn.pane.DataFrame(df_plot, max_height=500), sizing_mode='stretch_width'),
-                sizing_mode='stretch_width'
-            )
+        df_plot_reset = df_plot.reset_index()
+        o_overlay = build_multi_unit_overlay(df_plot_reset, c_unit_to_cols, x=group_col, hline_opts=hline_opts, min_height=600)
+        o_overlay = o_overlay.opts(xlabel='Year', ylabel=('Total ' if unit_choice == 'TAF' else 'Average ') + unit_choice)
+
+        return pn.Row(
+            pn.Column(pn.pane.HoloViews(o_overlay, sizing_mode='stretch_width', linked_axes=False),
+                      sizing_mode='stretch_width'),
+            pn.Column(pn.pane.DataFrame(df_plot, max_height=500), sizing_mode='stretch_width'),
+            sizing_mode='stretch_width'
+        )
 
 def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
                          c_default_units, period_choice, s_comparison, c_field_list,
