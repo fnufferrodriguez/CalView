@@ -1113,16 +1113,7 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
 
         s_title = "## " + s_wyt_col + " "
 
-        c_no_unit_names = {
-            'WYT_SAC_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_SJR_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_TRIN_': {1: 'Extremely Wet', 2: 'Wet', 3: 'Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_SHASTA_CVP_': {0: 'Non-Critical', 1: 'ShastaCritical'},
-            'WYT_FEATHER_': {1: 'Non-Critical', 2: 'Critically Dry'},
-            'WYT_SJRRP_DV': {1: 'Wet', 2: 'Normal-Wet', 3: 'Normal-Dry', 4: 'Dry', 5: 'Critical High', 6: 'Critical Low'},
-            'WYT_AMERD983_CVP_': {1: 'Non-Critical', 2: 'Critically Dry'},
-            'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
-        }
+        c_no_unit_names = C_NO_UNIT_NAMES
         try:
             if '/' in period_choice:
                 period_choice_stripped = period_choice.split('/')[1]
@@ -1659,16 +1650,7 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
 
         s_title = "## " + s_wyt_col + " "
 
-        c_no_unit_names = {
-            'WYT_SAC_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_SJR_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_TRIN_': {1: 'Extremely Wet', 2: 'Wet', 3: 'Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_SHASTA_CVP_': {0: 'Non-Critical', 1: 'ShastaCritical'},
-            'WYT_FEATHER_': {1: 'Non-Critical', 2: 'Critically Dry'},
-            'WYT_SJRRP_DV': {1: 'Wet', 2: 'Normal-Wet', 3: 'Normal-Dry', 4: 'Dry', 5: 'Critical High', 6: 'Critical Low'},
-            'WYT_AMERD983_CVP_': {1: 'Non-Critical', 2: 'Critically Dry'},
-            'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
-        }
+        c_no_unit_names = C_NO_UNIT_NAMES
         try:
             if '/' in period_choice:
                 period_choice_stripped = period_choice.split('/')[1]
@@ -1965,10 +1947,8 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
 
     # create copy of var list since lists are mutable
     var_list_final = var_list[:]
-
-    b_alt_unit = False
-    ls_alt_vars = []
-    s_alt_unit = ''
+    #per variable unit tracking
+    c_var_units = {}
 
     # Unit conversion
     for var in var_list:
@@ -1977,42 +1957,36 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
         except:
             original_unit = None
 
-        # check for variables that are not cfs/taf like EC, temperature, X2 position
-        if original_unit not in ['NONE', 'CFS', 'TAF']:
-            # if we havent already declared what the unit we will keep track of is, declare it
-            if s_alt_unit == '':
-                s_alt_unit = original_unit
-            if original_unit == s_alt_unit:
-                b_alt_unit = True
-                ls_alt_vars.append(var)
-        elif original_unit not in ['CFS', 'TAF']:
-            var_list_final.remove(var)
-            pass
-        elif original_unit == unit_choice:
-            pass
-        elif original_unit == 'CFS':
-            df_all_plot[var] = \
-                np.multiply(df_all_plot[var], cfs_taf)
-        elif original_unit == 'TAF':
-            df_all_plot[var] = \
-                np.multiply(df_all_plot[var], taf_cfs)
-
-    # If we found any non cfs/taf variables, we will only use those
-    if b_alt_unit:
-        var_list_final = ls_alt_vars
-        if s_alt_unit == 'DEGF':
-            if temp_unit_choice == 'C':
-                df_all_plot[ls_alt_vars] = (df_all_plot[ls_alt_vars] - 32) * 5 / 9
-                unit_choice = 'Degrees Celsius'
+        if original_unit == 'CFS':
+            if unit_choice == 'CFS':
+                pass
             else:
-                unit_choice = 'Degrees Fahrenheit'
+                df_all_plot[var] = np.multiply(df_all_plot[var], cfs_taf)
+            c_var_units[var] = unit_choice
+        elif original_unit == 'TAF':
+            if unit_choice == 'TAF':
+                pass
+            else:
+                df_all_plot[var] = np.multiply(df_all_plot[var], taf_cfs)
+            c_var_units[var] = unit_choice
+        elif original_unit == 'DEGF':
+            if temp_unit_choice == 'C':
+                df_all_plot[var] = (df_all_plot[var] - 32) * 5 / 9
+                c_var_units[var] = 'Degrees Celsius'
+            else:
+                c_var_units[var] = 'Degrees Fahrenheit'
+        elif original_unit == 'NONE':
+            c_var_units[var] = ''
         else:
-            unit_choice = s_alt_unit
-
+            c_var_units[var] = original_unit
     if len(var_list_final) == 0:
         return pn.pane.Markdown('## Select variables above to display plot.')
 
     # switch from variable name to description
+    c_desc_units = {
+        c_field_list[var]: c_var_units[var]
+        for var in var_list_final
+    }
     df_all_plot.rename(c_field_list, axis='columns', inplace=True)
     var_list_final = [c_field_list[var] for var in var_list_final]
 
@@ -2070,16 +2044,7 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
                 ls_wyt_cols.append(name)
         df_wide = df_wide.dropna(subset=ls_wyt_cols, how='all')
         # create a title that displays the WYTs
-        c_no_unit_names = {
-            'WYT_SAC_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_SJR_': {1: 'Wet', 2: 'Above Normal', 3: 'Below Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_TRIN_': {1: 'Extremely Wet', 2: 'Wet', 3: 'Normal', 4: 'Dry', 5: 'Critically Dry'},
-            'WYT_SHASTA_CVP_': {0: 'Non-Critical', 1: 'ShastaCritical'},
-            'WYT_FEATHER_': {1: 'Non-Critical', 2: 'Critically Dry'},
-            'WYT_SJRRP_DV': {1: 'Wet', 2: 'Normal-Wet', 3: 'Normal-Dry', 4: 'Dry', 5: 'Critical High', 6: 'Critical Low'},
-            'WYT_AMERD983_CVP_': {1: 'Non-Critical', 2: 'Critically Dry'},
-            'SHASTABIN_': {1: '1a', 2: '1b', 3: '2a', 4: '2b', 5: '3a', 6: '3b'}
-        }
+        c_no_unit_names = C_NO_UNIT_NAMES
         try:
             if '/' in period_choice:
                 period_choice_stripped = period_choice.split('/')[1]
@@ -2156,37 +2121,28 @@ def monthly_pattern(df_all, var_list, scenario_list, unit_choice,
     c_num_to_month = {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'}
     df_plot.index = df_plot.index.map(c_num_to_month)
 
-    # if doing difference plot, add horizontal line
-    if b_diffs_flag:
-        return pn.Column(
-            s_title,
-            pn.Row(
-                pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(color='black', line_width=1) * df_plot.hvplot(
-                    x='Month',
-                    min_height=600,
-                    xlabel='Month',
-                    ylabel=stat_choice + ' ' + unit_choice,
-                    grid=True
-                )).opts(legend_position='bottom', legend_cols=1),
-                                            sizing_mode='stretch_width', linked_axes=False),
-                          sizing_mode='stretch_width'),
-                pn.Column(pn.pane.DataFrame(df_wide, index=False, max_height=500), sizing_mode='stretch_width'),
-                sizing_mode='stretch_width'))
-    else:
-        return pn.Column(
-            s_title,
-            pn.Row(
-                pn.Column(pn.pane.HoloViews((hv.HLine(0).opts(line_width=0) * df_plot.hvplot(
-                    x='Month',
-                    min_height=600,
-                    xlabel='Month',
-                    ylabel=stat_choice + ' ' + unit_choice,
-                    grid=True
-                )).opts(legend_position='bottom', legend_cols=1),
-                                            sizing_mode='stretch_width', linked_axes=False),
-                          sizing_mode='stretch_width'),
-                pn.Column(pn.pane.DataFrame(df_wide, index=False, max_height=500), sizing_mode='stretch_width'),
-                sizing_mode='stretch_width'))
+    # group the plotted columns by unit and build the multi-axis overlay
+    c_unit_to_cols = {}
+    for var in var_list_final:
+        unit = c_desc_units[var]
+        for scenario in scenario_list:
+            col = f'{scenario}: {var}'
+            if col in keeplist:
+                c_unit_to_cols.setdefault(unit, []).append(col)
+
+    hline_opts = dict(color='black', line_width=1) if b_diffs_flag else dict(line_width=0)
+
+    df_plot_reset = df_plot.reset_index()
+    o_overlay = build_multi_unit_overlay(df_plot_reset, c_unit_to_cols, x='Month', hline_opts=hline_opts, min_height=600)
+    o_overlay = o_overlay.opts(xlabel='Month', ylabel=stat_choice + ' ' + unit_choice)
+
+    return pn.Column(
+        s_title,
+        pn.Row(
+            pn.Column(pn.pane.HoloViews(o_overlay, sizing_mode='stretch_width', linked_axes=False),
+                      sizing_mode='stretch_width'),
+            pn.Column(pn.pane.DataFrame(df_wide, index=False, max_height=500), sizing_mode='stretch_width'),
+            sizing_mode='stretch_width'))
 
 def plot_single_year(scenario_list, df_all, c_field_list, s_reservoir, i_year, temp_unit_choice='F'):
     """
