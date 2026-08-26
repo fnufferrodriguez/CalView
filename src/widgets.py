@@ -3,6 +3,8 @@ import warnings
 import panel as pn
 import os
 import pandas as pd
+from future.builtins import disabled
+
 from src.cs3_plotlib import *
 from functools import partial
 from src.csdss_readlib_fullfile import *
@@ -550,6 +552,7 @@ def create_widgets(scenario_names, c_field_list):
     # Month selector for WYT periods
     wyt_period_selector = pn.widgets.CheckButtonGroup(
         name='WYT Period Selector',
+        disabled=True,
         options={"January": 1, "February": 2, "March": 3, "April": 4,
                  "May": 5, "June": 6, "July": 7, "August": 8,
                  "September": 9, "October": 10, "November": 11, "December": 12
@@ -561,6 +564,7 @@ def create_widgets(scenario_names, c_field_list):
     # Water year total toggle
     wyt_period_selector_year = pn.widgets.Toggle(
         name='Water Year Total',
+        value=True,
         button_type='primary',
         button_style='outline')
 

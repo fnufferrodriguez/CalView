@@ -916,7 +916,8 @@ def plot_time_exceedance(scenario_list, var_list, unit_choice, df_all,
         # see if any years are selected
         if not li_wyt_selected:
             return pn.pane.Markdown("## No data to display")
-
+        if period_choice not in c_field_list:
+            return pn.pane.Markdown("## No data to display")
         # we do have some selected
         # what the column with the wyt is called
         s_wyt_col = c_field_list[period_choice]
