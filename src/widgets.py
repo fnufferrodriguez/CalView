@@ -1033,6 +1033,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         )
 
     all_fields = df_field_names_combined.index.tolist()
+    all_scenarios = scenario_names_combined[:]
 
     single_year_fields = df_field_names_combined[df_field_names_combined['Single Year Eligible']].index.tolist()
     b_have_single_year = len(single_year_fields) > 0
@@ -1042,6 +1043,66 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     var_selector_grouped = make_var_selector('Variable Selector', all_fields)
     var_selector_monthly = make_var_selector('Variable Selector', all_fields)
 
+    # When a WYT is selected as the period, restrict variables and scenarios
+    # to the module that owns that WYT.
+    def update_vars_for_wyt(event):
+        if isinstance(event.new, str) and ('WYT' in event.new or 'SHASTABIN_' in event.new):
+
+            # module that owns the selected WYT
+            s_wyt_module = df_field_names_combined.loc[event.new, 'Module']
+
+            # fields belonging to that module
+            valid_fields = df_field_names_combined[
+                df_field_names_combined['Module'] == s_wyt_module
+                ].index.tolist()
+
+            # scenarios/files belonging to that module
+            valid_scenarios = []
+            for df_all_m, df_diffs_m, c_units_m, c_fields_m, s_mod_comp_m, scen_names_m, s_mod_m in module_results:
+                if s_mod_m == s_wyt_module:
+                    valid_scenarios.extend(scen_names_m)
+
+        else:
+            # normal period -- all modules are available
+            valid_fields = all_fields
+            valid_scenarios = all_scenarios
+
+        # variable options
+        options = {
+            desc: field
+            for desc, field in c_description_to_field_all.items()
+            if field in valid_fields
+        }
+
+        valid_values = set(options.values())
+
+        for selector in [
+            var_selector_bar,
+            var_selector_grouped,
+            var_selector_monthly
+        ]:
+            # keep selections that are still valid
+            new_value = [
+                var for var in selector.value
+                if var in valid_values
+            ]
+
+            selector.param.update(
+                options=options,
+                value=new_value,
+                option_limit=max(len(options), 1),
+                search_option_limit=max(len(options), 1)
+            )
+
+        # restrict scenarios/files to the WYT's module
+        scen_selector.param.update(
+            options=valid_scenarios,
+            value=valid_scenarios,
+            option_limit=max(len(valid_scenarios), 1),
+            search_option_limit=max(len(valid_scenarios), 1)
+        )
+
+    period_selector.param.watch(update_vars_for_wyt, 'value')
     # Create other plots
 
     # Timeseries plot
