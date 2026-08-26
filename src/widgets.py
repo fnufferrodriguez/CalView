@@ -88,6 +88,25 @@ def filter_vars_to_module(selected_vars, c_module_fields):
         The subset of selected_vars that exist in this module
     """
     return [var for var in selected_vars if var in c_module_fields]
+def filter_scenarios_to_wyt_module(selected_scenarios, period_choice, module_results):
+    """
+    If a WYT period is selected, only keep scenarios belonging to the
+    module that contains that WYT field. Otherwise keep all selected scenarios.
+    """
+    if not (
+        isinstance(period_choice, str)
+        and ('WYT' in period_choice or 'SHASTABIN_' in period_choice)
+    ):
+        return selected_scenarios
+
+    for df_all_m, df_diffs_m, c_units_m, c_fields_m, s_mod_comp_m, scen_names_m, s_mod_m in module_results:
+        if period_choice in c_fields_m:
+            return [
+                scen for scen in selected_scenarios
+                if scen in scen_names_m
+            ]
+
+    return []
 
 def build_naming_stage(event, c_module_containers, c_flag, module_column, c_modules, header, tabs_row, old_new_sel):
     """
@@ -1033,7 +1052,6 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         )
 
     all_fields = df_field_names_combined.index.tolist()
-    all_scenarios = scenario_names_combined[:]
 
     single_year_fields = df_field_names_combined[df_field_names_combined['Single Year Eligible']].index.tolist()
     b_have_single_year = len(single_year_fields) > 0
@@ -1065,7 +1083,6 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         else:
             # normal period -- all modules are available
             valid_fields = all_fields
-            valid_scenarios = all_scenarios
 
         # variable options
         options = {
@@ -1094,15 +1111,14 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
                 search_option_limit=max(len(options), 1)
             )
 
-        # restrict scenarios/files to the WYT's module
-        scen_selector.param.update(
-            options=valid_scenarios,
-            value=valid_scenarios,
-            option_limit=max(len(valid_scenarios), 1),
-            search_option_limit=max(len(valid_scenarios), 1)
-        )
-
     period_selector.param.watch(update_vars_for_wyt, 'value')
+    filtered_scenarios = pn.bind(
+        filter_scenarios_to_wyt_module,
+        selected_scenarios=scen_selector,
+        period_choice=period_selector,
+        module_results=module_results
+    )
+    
     # Create other plots
 
     # Timeseries plot
@@ -1121,7 +1137,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     # Time aggregated plot
     bound_plot_grouped = pn.bind(
         plot_time_group,
-        scenario_list=scen_selector,
+        scenario_list=filtered_scenarios,
         var_list=var_selector_grouped,
         unit_choice=unit_selector,
         df_all=df_all_data_combined,
@@ -1141,7 +1157,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         df_all=df_all_data_combined,
         period_choice=period_selector,
         var_list=var_selector_bar,
-        scenario_list=scen_selector,
+        scenario_list=filtered_scenarios,
         unit_choice=unit_selector,
         stat_choice=bar_stat_sel,
         c_default_units=c_default_units_all,
@@ -1158,7 +1174,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         monthly_pattern,
         df_all=df_all_data_combined,
         var_list=var_selector_monthly,
-        scenario_list=scen_selector,
+        scenario_list=filtered_scenarios,
         unit_choice=unit_selector,
         stat_choice=monthly_stat_sel,
         c_default_units=c_default_units_all,
