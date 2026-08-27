@@ -1561,7 +1561,8 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
             # assign the WYt to be the correct one
-            df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]] / 12
+            if agg_func == 'sum':
+                df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]] / 12
 
             # get rid of other columns we dont need
             df_plot = df_grouped[keeplist]
@@ -1586,7 +1587,8 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
             df_grouped = df_wide.groupby(by=['OctSeptYear']).agg(agg_func)
 
             # assign the WYt to be the correct one
-            df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]] / len(li_wyt_period_months)
+            if agg_func == 'sum':
+                df_grouped[keeplist[:len(scenario_list)]] = df_grouped[keeplist[:len(scenario_list)]] / len(li_wyt_period_months)
 
             # get rid of other columns we don't need
             df_plot = df_grouped[keeplist]
@@ -1840,9 +1842,6 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
                 df_exceed.interpolate(method='index', inplace=True)
                 df_stats = df_exceed.loc[i_exceedance_prob].to_frame()
 
-    # round to one decimal place
-    df_stats.loc[:, df_stats.columns != 'Date'] = df_stats.loc[:, df_stats.columns != 'Date'].round(1)
-    df_plot = df_plot.round(1)
 
     # calculate bound, pick colors, and plot for all data above
     # Set upper and lower bounds
@@ -1854,6 +1853,10 @@ def plot_bars(df_all, period_choice, var_list, scenario_list,
         y_upper = np.max(df_stats) * 1.05
     else:
         y_upper = 0
+
+    # round to one decimal place
+    #df_stats.loc[:, df_stats.columns != 'Date'] = df_stats.loc[:, df_stats.columns != 'Date'].round(1)
+    df_plot = df_plot.round(1)
 
     # full list of color options
     ls_colors = ['#003E51', '#007396', '#C69214', '#FF671F', '#215732', '#4C12A1', '#9A3324'] + hv.Cycle.default_cycles["default_colors"]
