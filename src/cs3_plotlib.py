@@ -53,6 +53,9 @@ def build_multi_unit_overlay(df_source, c_unit_to_cols, x='Date', hline_opts=Non
     if hline_opts is None:
         hline_opts = dict(line_width=0)
 
+    # whether we're in diffs mode - drives the zero-centering behavior below
+    b_diffs_mode = hline_opts.get('line_width', 0) != 0
+
     # cap at 2 unit groups
     ls_units = list(c_unit_to_cols.keys())[:2]
 
@@ -85,21 +88,40 @@ def build_multi_unit_overlay(df_source, c_unit_to_cols, x='Date', hline_opts=Non
     overlay = hv.Overlay(curves)
 
     # diffs mode reference line at y=0
-    if hline_opts.get('line_width', 0) != 0:
+    if b_diffs_mode:
         overlay = overlay * hv.HLine(0).opts(**hline_opts)
 
-    opts_kwargs = dict(legend_position='bottom', legend_cols=1, min_height=min_height, ylabel=primary_label)
+    opts_kwargs = dict(legend_position='bottom', legend_cols=1, min_height=min_height, ylabel=primary_label, show_grid=True)
+
+    # in diffs mode, force the primary axis range to be symmetric about zero so 0 sits at the vertical midpoint of the primary axis
+    if b_diffs_mode:
+        primary_abs_max = float(df_source[primary_cols].abs().max().max())
+        if primary_abs_max == 0:
+            primary_abs_max = 1.0
+        primary_abs_max *= 1.05
+        opts_kwargs['ylim'] = (-primary_abs_max, primary_abs_max)
 
     if secondary_unit is not None:
         # compute the secondary axis data range up front so the hook can just apply it
         sec_data = df_source[secondary_cols]
-        sec_min = float(sec_data.min().min())
-        sec_max = float(sec_data.max().max())
-        if sec_min == sec_max:
-            sec_min -= 1
-            sec_max += 1
-        pad = (sec_max - sec_min) * 0.05
-        sec_range = (sec_min - pad, sec_max + pad)
+
+        if b_diffs_mode:
+            # zero-centered range (padded 5% off max absolute value) so 0 sits at the
+            # same relative height as the primary axis's zero-centered range above
+            sec_abs_max = float(sec_data.abs().max().max())
+            if sec_abs_max == 0:
+                sec_abs_max = 1.0
+            sec_abs_max *= 1.05
+            sec_range = (-sec_abs_max, sec_abs_max)
+        else:
+            #range based on data min/max no zero centering
+            sec_min = float(sec_data.min().min())
+            sec_max = float(sec_data.max().max())
+            if sec_min == sec_max:
+                sec_min -= 1
+                sec_max += 1
+            pad = (sec_max - sec_min) * 0.05
+            sec_range = (sec_min - pad, sec_max + pad)
 
         secondary_col_set = set(secondary_cols)
 
