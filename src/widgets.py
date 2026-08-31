@@ -698,6 +698,7 @@ def create_metadata(scenario_names, c_field_list, c_default_units, s_module):
     # temperature eligibility
     if s_module == 'temperature':
         df_field_names['Single Year Eligible'] = True
+        df_field_names['Shapefile'] = None
     else:
         df_field_names['Single Year Eligible'] = False
 

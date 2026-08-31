@@ -295,7 +295,6 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, l
             if df_temp[s_wyt_col].isna().all():
                 continue
 
-            #df_temp.reset_index(inplace=True, drop=True)
             col_names = [f'{scenario}: {s_wyt_col}']
             df_temp = df_temp.rename(columns={s_wyt_col: col_names})
             df_wide = df_wide.merge(df_temp, on='Date', how='left')
