@@ -281,6 +281,7 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, l
 
     # Sortable, filter to target scenarios and vars
     df_wide = pd.DataFrame(df_all_plot['Date'].unique(), columns=['Date'])
+    df_wide = df_wide.sort_values('Date').reset_index(drop=True)
     df_wide.reset_index(inplace=True, drop=True)
 
     keeplist = ['Date']
@@ -289,33 +290,32 @@ def plot_values(scenario_list, var_list, unit_choice, df_all, c_default_units, l
     # WYT columns (one per scenario), kept separate from the unit-grouped columns
     if s_wyt_col:
         for scenario in scenario_list:
-            df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][[s_wyt_col]]
+            df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][['Date', s_wyt_col]]
             #for scenarios taken from modules without this field all values are NA so skip over
             if df_temp[s_wyt_col].isna().all():
                 continue
 
-            df_temp.reset_index(inplace=True, drop=True)
             col_names = [f'{scenario}: {s_wyt_col}']
-            df_temp.columns = col_names
-            df_wide[col_names] = df_temp[col_names]
+            df_temp = df_temp.rename(columns={s_wyt_col: col_names})
+            df_wide = df_wide.merge(df_temp, on='Date', how='left')
             wyt_keeplist.extend(col_names)
         keeplist.extend(wyt_keeplist)
 
     for scenario in scenario_list:
-        df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][var_list_final_desc]
+        df_temp = df_all_plot.loc[df_all_plot['Scenario'] == scenario][['Date'] + var_list_final_desc]
         #skip vars this scenarios module doesnt produce
         valid_vars = [v for v in var_list_final_desc if not df_temp[v].isna().all()]
         if not valid_vars:
             continue
-        df_temp = df_temp[valid_vars]
-        df_temp.reset_index(inplace=True, drop=True)
         col_names = [f'{scenario}: {var}' for var in valid_vars]
-        df_temp.columns = col_names
-        df_wide[col_names] = df_temp[col_names]
+        df_temp = df_temp[['Date'] + valid_vars]
+        df_temp.columns = ['Date'] + col_names
+        df_wide = df_wide.merge(df_temp, on='Date', how='left')
         for name in col_names:
             keeplist.append(name)
 
     df_plot = df_wide.drop([var for var in df_wide if var not in keeplist])
+    df_plot = df_plot.sort_values('Date').reset_index(drop=True)
 
     # round to one decimal place
     df_plot.loc[:, df_plot.columns != 'Date'] = df_plot.loc[:, df_plot.columns != 'Date'].round(1)
