@@ -1,6 +1,6 @@
 import os
 import sys
-
+#this file is needed to correctly compile the executable
 if getattr(sys, 'frozen', False):
     base_dir = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
     os.environ['GDAL_DATA'] = os.path.join(base_dir, 'gdal-data')

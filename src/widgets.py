@@ -3,6 +3,8 @@ import warnings
 import panel as pn
 import os
 import pandas as pd
+from future.builtins import disabled
+
 from src.cs3_plotlib import *
 from functools import partial
 from src.csdss_readlib_fullfile import *
@@ -86,6 +88,25 @@ def filter_vars_to_module(selected_vars, c_module_fields):
         The subset of selected_vars that exist in this module
     """
     return [var for var in selected_vars if var in c_module_fields]
+def filter_scenarios_to_wyt_module(selected_scenarios, period_choice, module_results):
+    """
+    If a WYT period is selected, only keep scenarios belonging to the
+    module that contains that WYT field. Otherwise keep all selected scenarios.
+    """
+    if not (
+        isinstance(period_choice, str)
+        and ('WYT' in period_choice or 'SHASTABIN_' in period_choice)
+    ):
+        return selected_scenarios
+
+    for df_all_m, df_diffs_m, c_units_m, c_fields_m, s_mod_comp_m, scen_names_m, s_mod_m in module_results:
+        if period_choice in c_fields_m:
+            return [
+                scen for scen in selected_scenarios
+                if scen in scen_names_m
+            ]
+
+    return []
 
 def build_naming_stage(event, c_module_containers, c_flag, module_column, c_modules, header, tabs_row, old_new_sel):
     """
@@ -208,7 +229,7 @@ def build_naming_stage(event, c_module_containers, c_flag, module_column, c_modu
             # Enter a run name for each file (e.g. Baseline, Alt1, etc.). 
             """, renderer='markdown')
         run_name_instructions_comparison = pn.pane.Markdown("""                
-            ## <span style="color:red">One run must be marked for comparison.</span>
+            ## <span style="color:red">One run must be marked for comparison per module.</span>
             """, renderer='markdown')
         run_name_instructions_tooltip = pn.widgets.TooltipIcon(
             value='A plot of differences will be created based off this scenario.')
@@ -550,6 +571,7 @@ def create_widgets(scenario_names, c_field_list):
     # Month selector for WYT periods
     wyt_period_selector = pn.widgets.CheckButtonGroup(
         name='WYT Period Selector',
+        disabled=True,
         options={"January": 1, "February": 2, "March": 3, "April": 4,
                  "May": 5, "June": 6, "July": 7, "August": 8,
                  "September": 9, "October": 10, "November": 11, "December": 12
@@ -561,6 +583,7 @@ def create_widgets(scenario_names, c_field_list):
     # Water year total toggle
     wyt_period_selector_year = pn.widgets.Toggle(
         name='Water Year Total',
+        value=True,
         button_type='primary',
         button_style='outline')
 
@@ -819,7 +842,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     ls_df_diffs = []
     c_field_list_all = {}
     c_default_units_all = {}
-    s_comparison = None
+    ls_all_comparisons = []
     ls_metadata_panels = []
     ls_field_names_dfs = []
     single_year_scenarios = []
@@ -829,8 +852,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         ls_df_diffs.append(df_diffs)
         c_field_list_all.update(c_field_list)
         c_default_units_all.update(c_default_units)
-        if s_comparison is None:
-            s_comparison = s_mod_comparison
+        ls_all_comparisons.append(s_mod_comparison)
 
         #create metadata
         o_metadata, df_field_names = create_metadata(scenario_names, c_field_list, c_default_units, s_module)
@@ -846,7 +868,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     scenario_names_combined = df_all_data_combined['Scenario'].unique().tolist()
 
     # remove comparison scen from the differences dataframe as all values are zero
-    df_diffs_combined = df_diffs_combined[df_diffs_combined.Scenario != s_comparison]
+    df_diffs_combined = df_diffs_combined[~df_diffs_combined.Scenario.isin(ls_all_comparisons)]
 
     # naming stage no longer needed now that all modules' data is loaded and combined
     for _ in range(len(module_column)):
@@ -868,6 +890,8 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     # Build one exceedance section per module since exceedance plots are module specific
     exceedance_sections = []
     for df_all_data, df_diffs, c_default_units, c_field_list, s_mod_comparison, scenario_names, s_module in module_results:
+        #strip this module's own comparison scenario out of its own diffs scen
+        df_diffs_m_filtered = df_diffs[df_diffs.Scenario != s_mod_comparison]
         mod_description_to_field = {desc: field for field, desc in c_field_list.items()}
         mod_var_selector_exceedance = pn.widgets.MultiChoice(
             name='Variable Selector',
@@ -886,11 +910,11 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             scenario_list=scen_selector,
             var_list=mod_var_selector_exceedance,
             unit_choice=unit_selector,
-            df_all=df_all_data_combined,
-            c_default_units=c_default_units_all,
+            df_all=df_all_data,
+            c_default_units=c_default_units,
             period_choice=period_selector,
-            s_comparison=s_comparison,
-            c_field_list=c_field_list_all,
+            s_comparison=s_mod_comparison,
+            c_field_list=c_field_list,
             li_wyt_selected=wyt_selector,
             b_wyt_period_year=wyt_period_selector_year,
             li_wyt_period_months=wyt_period_selector,
@@ -904,11 +928,11 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             scenario_list=scen_selector,
             var_list=mod_var_selector_exceedance,
             unit_choice=unit_selector,
-            df_all=df_diffs_combined,
-            c_default_units=c_default_units_all,
+            df_all=df_diffs_m_filtered,
+            c_default_units=c_default_units,
             period_choice=period_selector,
-            s_comparison=s_comparison,
-            c_field_list=c_field_list_all,
+            s_comparison=s_mod_comparison,
+            c_field_list=c_field_list,
             li_wyt_selected=wyt_selector,
             b_wyt_period_year=wyt_period_selector_year,
             li_wyt_period_months=wyt_period_selector,
@@ -924,13 +948,13 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
 
         mod_exceedance_diff_title = pn.bind(create_plot_title,
                                             s_title=c_modules.get(s_module, s_module) + " Exceedance Plot",
-                                            s_comparison=s_comparison,
+                                            s_comparison=s_mod_comparison,
                                             s_period=period_selector)
 
         exceedance_sections.append((
             c_modules.get(s_module, s_module),
             pn.Row(
-                pn.Column(mod_exceedance_title, mod_var_selector_exceedance, mod_bound_plot_exceedance,
+                pn.Column(mod_var_selector_exceedance, mod_exceedance_title, mod_bound_plot_exceedance,
                           mod_exceedance_show_year_check),
                 pn.Column(mod_exceedance_diff_title, mod_bound_plot_diffs_exceedance,
                           mod_exceedance_show_year_check_diffs)
@@ -1037,6 +1061,64 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     var_selector_grouped = make_var_selector('Variable Selector', all_fields)
     var_selector_monthly = make_var_selector('Variable Selector', all_fields)
 
+    # When a WYT is selected as the period, restrict variables and scenarios
+    # to the module that owns that WYT.
+    def update_vars_for_wyt(event):
+        if isinstance(event.new, str) and ('WYT' in event.new or 'SHASTABIN_' in event.new):
+
+            # module that owns the selected WYT
+            s_wyt_module = df_field_names_combined.loc[event.new, 'Module']
+
+            # fields belonging to that module
+            valid_fields = df_field_names_combined[
+                df_field_names_combined['Module'] == s_wyt_module
+                ].index.tolist()
+
+            # scenarios/files belonging to that module
+            valid_scenarios = []
+            for df_all_m, df_diffs_m, c_units_m, c_fields_m, s_mod_comp_m, scen_names_m, s_mod_m in module_results:
+                if s_mod_m == s_wyt_module:
+                    valid_scenarios.extend(scen_names_m)
+
+        else:
+            # normal period -- all modules are available
+            valid_fields = all_fields
+
+        # variable options
+        options = {
+            desc: field
+            for desc, field in c_description_to_field_all.items()
+            if field in valid_fields
+        }
+
+        valid_values = set(options.values())
+
+        for selector in [
+            var_selector_bar,
+            var_selector_grouped,
+            var_selector_monthly
+        ]:
+            # keep selections that are still valid
+            new_value = [
+                var for var in selector.value
+                if var in valid_values
+            ]
+
+            selector.param.update(
+                options=options,
+                value=new_value,
+                option_limit=max(len(options), 1),
+                search_option_limit=max(len(options), 1)
+            )
+
+    period_selector.param.watch(update_vars_for_wyt, 'value')
+    filtered_scenarios = pn.bind(
+        filter_scenarios_to_wyt_module,
+        selected_scenarios=scen_selector,
+        period_choice=period_selector,
+        module_results=module_results
+    )
+    
     # Create other plots
 
     # Timeseries plot
@@ -1047,7 +1129,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         unit_choice=unit_selector,
         df_all=df_all_data_combined,
         c_default_units=c_default_units_all,
-        s_comparison=s_comparison,
+        ls_comparison=ls_all_comparisons,
         c_field_list=c_field_list_all,
         temp_unit_choice=temp_unit_selector,
     )
@@ -1055,13 +1137,13 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
     # Time aggregated plot
     bound_plot_grouped = pn.bind(
         plot_time_group,
-        scenario_list=scen_selector,
+        scenario_list=filtered_scenarios,
         var_list=var_selector_grouped,
         unit_choice=unit_selector,
         df_all=df_all_data_combined,
         c_default_units=c_default_units_all,
         period_choice=period_selector,
-        s_comparison=s_comparison,
+        ls_comparison=ls_all_comparisons,
         c_field_list=c_field_list_all,
         li_wyt_selected=wyt_selector,
         b_wyt_period_year=wyt_period_selector_year,
@@ -1075,11 +1157,11 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         df_all=df_all_data_combined,
         period_choice=period_selector,
         var_list=var_selector_bar,
-        scenario_list=scen_selector,
+        scenario_list=filtered_scenarios,
         unit_choice=unit_selector,
         stat_choice=bar_stat_sel,
         c_default_units=c_default_units_all,
-        s_comparison=s_comparison,
+        ls_comparison=ls_all_comparisons,
         c_field_list=c_field_list_all,
         li_wyt_selected=wyt_selector,
         b_wyt_period_year=wyt_period_selector_year,
@@ -1092,11 +1174,11 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
         monthly_pattern,
         df_all=df_all_data_combined,
         var_list=var_selector_monthly,
-        scenario_list=scen_selector,
+        scenario_list=filtered_scenarios,
         unit_choice=unit_selector,
         stat_choice=monthly_stat_sel,
         c_default_units=c_default_units_all,
-        s_comparison=s_comparison,
+        ls_comparison=ls_all_comparisons,
         c_field_list=c_field_list_all,
         period_choice=period_selector,
         li_wyt_selected=wyt_selector,
@@ -1119,7 +1201,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             plot_values,
             scenario_list=scen_selector, var_list=mod_var_ts,
             unit_choice=unit_selector, df_all=df_diffs_m,
-            c_default_units=c_units_m, s_comparison=s_mod_comp_m,
+            c_default_units=c_units_m, ls_comparison=[s_mod_comp_m],
             c_field_list=c_fields_m, temp_unit_choice=temp_unit_selector
         )))
         #time aggregated differences plots
@@ -1128,7 +1210,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             scenario_list=scen_selector, var_list=mod_var_grouped,
             unit_choice=unit_selector, df_all=df_diffs_m,
             c_default_units=c_units_m, period_choice=period_selector,
-            s_comparison=s_mod_comp_m, c_field_list=c_fields_m,
+            ls_comparison=[s_mod_comp_m], c_field_list=c_fields_m,
             li_wyt_selected=wyt_selector, b_wyt_period_year=wyt_period_selector_year,
             li_wyt_period_months=wyt_period_selector, temp_unit_choice=temp_unit_selector
         )))
@@ -1138,7 +1220,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             df_all=df_diffs_m, period_choice=period_selector,
             var_list=mod_var_bar, scenario_list=scen_selector,
             unit_choice=unit_selector, stat_choice=bar_stat_sel,
-            c_default_units=c_units_m, s_comparison=s_mod_comp_m,
+            c_default_units=c_units_m, ls_comparison=[s_mod_comp_m],
             c_field_list=c_fields_m, li_wyt_selected=wyt_selector,
             b_wyt_period_year=wyt_period_selector_year,
             li_wyt_period_months=wyt_period_selector, temp_unit_choice=temp_unit_selector
@@ -1149,7 +1231,7 @@ def create_plots(event, module_results, module_column, header, tabs_row, c_modul
             df_all=df_diffs_m, var_list=mod_var_monthly,
             scenario_list=scen_selector, unit_choice=unit_selector,
             stat_choice=monthly_stat_sel, c_default_units=c_units_m,
-            s_comparison=s_mod_comp_m, c_field_list=c_fields_m,
+            ls_comparison=[s_mod_comp_m], c_field_list=c_fields_m,
             period_choice=period_selector, li_wyt_selected=wyt_selector, temp_unit_choice=temp_unit_selector
         )))
     #temperature plots

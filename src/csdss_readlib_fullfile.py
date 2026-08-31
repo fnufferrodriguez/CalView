@@ -348,7 +348,7 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
 
     """
     results = {}
-    c_default_units_all = {} #todo add hydro in to this
+    c_default_units_all = {}
     if s_module in ('calsim', 'salinity', 'hydro_out', 'hydro_in'):
         c_field_list_final = c_field_list.copy()
     elif s_module == 'temperature':
@@ -533,7 +533,7 @@ def file_reader(runs: list[list], c_field_list, s_comparison, s_module):
                 c_default_units_all.update(c_ec_default_units)
 
                 results[run[0]] = df_all_data
-            elif s_module == 'hydro_out': #todo add hydro in to this
+            elif s_module == 'hydro_out':
                 df_all_data, c_target_ts_list, c_default_units = single_file_pull(run[1], c_field_list, run[0], s_module)
 
                 #assume all monthly data
